@@ -1,5 +1,6 @@
-from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabel, QLineEdit, QGridLayout, QComboBox, QCheckBox, QDialog, QListWidgetItem
+from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabel, QLineEdit, QGridLayout, QCompleter, QCheckBox, QDialog, QListWidgetItem
 from PyQt5.QtGui import QIntValidator
+from PyQt5.QtCore import Qt
 import requests
 from comunas import Comunas_list
 
@@ -43,12 +44,25 @@ class InscriptionModal(QDialog):
         else:
             f_inscripcion.setText("--/--/----")
         
-        f_inscripcion.textChanged.connect(self.auto_format_date)
+        f_inscripcion.textChanged.connect(lambda: self.parent().auto_format_date(f_inscripcion))
 
         layout.addWidget(f_inscripcion, 1, 1)
+        
+        self.comunas_formatted_list = [
+                    comuna.upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+                    for comuna in Comunas_list
+                ]
+
+        self.completer = QCompleter(self.comunas_formatted_list)
+        self.completer.setCompletionMode(QCompleter.InlineCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        
         cbr_label = QLabel("CBR:")
         layout.addWidget(cbr_label, 2, 0)
         cbr = QLineEdit()
+        cbr.setCompleter(self.completer)
+        cbr.returnPressed.connect(self.select_completion)
+        cbr.textChanged.connect(lambda: self.parent().to_uppercase(cbr))
         if data:
             cbr.setText(data['cbr'])
         layout.addWidget(cbr, 2, 1)
@@ -79,6 +93,7 @@ class InscriptionModal(QDialog):
         anio_label = QLabel("Año:")
         layout.addWidget(anio_label, 6, 0)
         anio = QLineEdit()
+        anio.setMaxLength(4)
         anio.setValidator(QIntValidator())
         if data:
             anio.setText(data['anio'])
@@ -92,53 +107,11 @@ class InscriptionModal(QDialog):
         list_item.setSizeHint(container.sizeHint())
         self.inscription_list.addItem(list_item)
         self.inscription_list.setItemWidget(list_item, container)
-
-
-    def auto_format_date(self, text):
-        clean_text = text.replace("/", "")
-        
-        print(f"Texto ingresado: {text}")
-        print(f"Texto limpio: {clean_text}")
-        
-        if len(clean_text) > 8:
-            clean_text = clean_text[:8]
-        
-        formatted_text = ""
-        cursor_position = self.sender().cursorPosition()
-        print(f"Posición inicial del cursor: {cursor_position}")
-        
-        if len(clean_text) >= 2:
-            formatted_text += clean_text[:2] + "/"
-        else:
-            formatted_text += clean_text
-        
-        if len(clean_text) >= 4:
-            formatted_text += clean_text[2:4] + "/"
-        elif len(clean_text) > 2:
-            formatted_text += clean_text[2:4]
-        
-        if len(clean_text) > 4:
-            formatted_text += clean_text[4:]
-        
-        print(f"Texto formateado: {formatted_text}")
-        
-        prev_length = len(self.sender().text())
-        print(f"Longitud anterior del texto: {prev_length}")
-        
-        self.sender().blockSignals(True)
-        self.sender().setText(formatted_text)
-        self.sender().blockSignals(False)
-        
-        if len(formatted_text) > prev_length:
-            cursor_position += 1
-        elif len(formatted_text) < prev_length:
-            cursor_position -= 1
-        
-        print(f"Posición ajustada del cursor: {cursor_position}")
-        
-        self.sender().setCursorPosition(cursor_position)
-        print(f"Posición final del cursor: {self.sender().cursorPosition()}")
-
+    
+    def select_completion(self):
+        if self.completer.completionCount() > 0:
+            self.sender().setText(self.completer.currentCompletion())
+        self.sender().focusNextPrevChild(True)
 
     def delete_inscription(self, container, inscription_id=None):
         if inscription_id:
@@ -193,6 +166,7 @@ class InscriptionModal(QDialog):
             response.raise_for_status()
             if not silence:
                 self.accept()
+                self.deleteLater()
                 self.parent().show_message("Info", "Guardar", "Inscripciones guardadas exitosamente.")
 
             print("Inscripciones guardadas:", inscriptions_data)

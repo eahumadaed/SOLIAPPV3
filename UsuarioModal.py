@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabel, QGridLayout, QComboBox, QLineEdit, QDialog, QListWidgetItem
 import requests
+import re
 
 
 class UsuarioModal(QDialog):
@@ -8,6 +9,8 @@ class UsuarioModal(QDialog):
         self.setWindowTitle("Gestionar Usuarios")
         self.setGeometry(200, 200, 700, 700)
         self.layout = QVBoxLayout()
+        
+        self.loaded_ruts_with_error = []
 
         self.usuario_list = QListWidget(self)
         self.layout.addWidget(self.usuario_list)
@@ -38,8 +41,14 @@ class UsuarioModal(QDialog):
         rut_label = QLabel("RUT")
         layout.addWidget(rut_label, 0, 0)
         rut = QLineEdit()
+        rut.textChanged.connect(lambda: self.parent().to_uppercase(rut))
+        rut.focusOutEvent = lambda event: self.parent().on_rut_focus_out(rut, event)
         if data:
-            rut.setText(data['rut'])
+            verified_rut = self.parent().verificar_rut(rut=data['rut'], show_messages=False)
+            rut.setText(verified_rut['rut'])
+            if "errorWasFounded" in verified_rut and verified_rut["errorWasFounded"]:
+                self.loaded_ruts_with_error.append(verified_rut['rut'])
+            
         layout.addWidget(rut, 0, 1)
 
         buscar_button = QPushButton("Buscar", self)
@@ -49,7 +58,9 @@ class UsuarioModal(QDialog):
         nac_label = QLabel("Nacionalidad:")
         layout.addWidget(nac_label, 1, 0)
         nac = QComboBox()
+        nac.wheelEvent = lambda event: event.ignore()
         nac.addItems(['--', 'CHILENA', 'EXTRANJERA'])
+        
         if data:
             nac.setCurrentText(data['nac'])
         layout.addWidget(nac, 1, 1)
@@ -57,6 +68,7 @@ class UsuarioModal(QDialog):
         tipo_label = QLabel("Tipo:")
         layout.addWidget(tipo_label, 1, 2)
         tipo = QComboBox()
+        tipo.wheelEvent = lambda event: event.ignore()
         tipo.addItems(['--', 'NATURAL', 'JURIDICA'])
         if data:
             tipo.setCurrentText(data['tipo'])
@@ -65,6 +77,7 @@ class UsuarioModal(QDialog):
         genero_label = QLabel("Género:")
         layout.addWidget(genero_label, 2, 0)
         genero = QComboBox()
+        genero.wheelEvent = lambda event: event.ignore()
         genero.addItems(['--', 'F', 'M'])
         if data:
             genero.setCurrentText(data['genero'])
@@ -73,6 +86,7 @@ class UsuarioModal(QDialog):
         nombre_label = QLabel("Nombre:")
         layout.addWidget(nombre_label, 2, 2)
         nombre = QLineEdit()
+        nombre.textChanged.connect(lambda: self.parent().to_uppercase(nombre))
         if data:
             nombre.setText(data['nombre'])
         layout.addWidget(nombre, 2, 3)
@@ -80,6 +94,7 @@ class UsuarioModal(QDialog):
         paterno_label = QLabel("Apellido Paterno:")
         layout.addWidget(paterno_label, 3, 0)
         paterno = QLineEdit()
+        paterno.textChanged.connect(lambda: self.parent().to_uppercase(paterno))
         if data:
             paterno.setText(data['paterno'])
         layout.addWidget(paterno, 3, 1)
@@ -87,6 +102,7 @@ class UsuarioModal(QDialog):
         materno_label = QLabel("Apellido Materno:")
         layout.addWidget(materno_label, 3, 2)
         materno = QLineEdit()
+        materno.textChanged.connect(lambda: self.parent().to_uppercase(materno))
         if data:
             materno.setText(data['materno'])
         layout.addWidget(materno, 3, 3)
@@ -155,6 +171,7 @@ class UsuarioModal(QDialog):
             response.raise_for_status()
             if not silence:
                 self.accept()
+                self.deleteLater()
                 self.parent().show_message("Info", "Guardar", "Usuarios guardados exitosamente.")
                 print("Usuarios guardados:", usuarios_data)
         except requests.RequestException as e:
@@ -177,89 +194,6 @@ class UsuarioModal(QDialog):
         except requests.RequestException as e:
             print(f"Error al cargar usuarios: {e}")
             self.parent().show_message("Error", "Error al cargar usuarios", str(e))
-
-    def add_usuario_with_data(self, data):
-        container = QFrame(self)
-        layout = QGridLayout(container)
-
-        rut_label = QLabel("RUT")
-        layout.addWidget(rut_label, 0, 0)
-        rut = QLineEdit()
-        if data:
-            rut.setText(data['rut'])
-        layout.addWidget(rut, 0, 1)
-
-        buscar_button = QPushButton("Buscar", self)
-        buscar_button.clicked.connect(lambda: self.buscar_rut(rut, container))
-        layout.addWidget(buscar_button, 0, 2)
-
-        nac_label = QLabel("Nacionalidad:")
-        layout.addWidget(nac_label, 1, 0)
-        nac = QComboBox()
-        nac.addItems(['--', 'CHILENA', 'EXTRANJERA'])
-        nac.setCurrentText(data['nac'])
-        layout.addWidget(nac, 1, 1)
-
-        tipo_label = QLabel("Tipo:")
-        layout.addWidget(tipo_label, 1, 2)
-        tipo = QComboBox()
-        tipo.addItems(['--', 'NATURAL', 'JURIDICA'])
-        tipo.setCurrentText(data['tipo'])
-        layout.addWidget(tipo, 1, 3)
-
-        genero_label = QLabel("Género:")
-        layout.addWidget(genero_label, 2, 0)
-        genero = QComboBox()
-        genero.addItems(['--', 'F', 'M'])
-        genero.setCurrentText(data['genero'])
-        layout.addWidget(genero, 2, 1)
-
-        nombre_label = QLabel("Nombre:")
-        layout.addWidget(nombre_label, 2, 2)
-        nombre = QLineEdit()
-        nombre.setText(data['nombre'])
-        layout.addWidget(nombre, 2, 3)
-
-        paterno_label = QLabel("Apellido Paterno:")
-        layout.addWidget(paterno_label, 3, 0)
-        paterno = QLineEdit()
-        paterno.setText(data['paterno'])
-        layout.addWidget(paterno, 3, 1)
-
-        materno_label = QLabel("Apellido Materno:")
-        layout.addWidget(materno_label, 3, 2)
-        materno = QLineEdit()
-        materno.setText(data['materno'])
-        layout.addWidget(materno, 3, 3)
-
-        delete_button = QPushButton("Borrar", self)
-        delete_button.clicked.connect(lambda: self.delete_usuario(container, data['id']))
-        layout.addWidget(delete_button, 4, 0, 1, 4)
-
-        list_item = QListWidgetItem()
-        list_item.setSizeHint(container.sizeHint())
-        self.usuario_list.addItem(list_item)
-        self.usuario_list.setItemWidget(list_item, container)
-
-    def on_rut_focus_out(self, entry, event):
-            try:
-                formatted_rut=""
-                text = entry.text()
-                base_rut = re.sub(r'\D', '', text.strip().split("-")[0])
-
-                if len(base_rut) > 8:
-                    base_rut = base_rut[:8] 
-                
-                if len(base_rut)>=6:
-                    dv = self.parent().calculate_dv(base_rut)
-                    formatted_rut = f"{base_rut}-{dv}"
-                #formatted_rut = text
-                entry.blockSignals(True)
-                entry.setText(formatted_rut)
-                entry.blockSignals(False)
-            except:
-                pass
-            QLineEdit.focusOutEvent(entry, event)
     
     
     def buscar_rut(self, rut_entry, container):
@@ -278,8 +212,6 @@ class UsuarioModal(QDialog):
             container.layout().itemAt(5).widget().setCurrentText(data['NAC'])
         else:
             self.parent().show_message("Error", "Error al buscar RUT", "No se encontraron datos para el RUT ingresado.")
-
-
 
 
                 

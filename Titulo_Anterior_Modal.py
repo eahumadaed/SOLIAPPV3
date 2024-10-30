@@ -1,6 +1,8 @@
-from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabel, QLineEdit, QGridLayout,QCheckBox, QDialog, QListWidgetItem
+from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QCompleter, QPushButton, QLabel, QLineEdit, QGridLayout,QCheckBox, QDialog, QListWidgetItem
 from PyQt5.QtGui import QIntValidator
+from PyQt5.QtCore import Qt
 import requests
+from comunas import Comunas_list
 
 class TituloModal(QDialog):
     def __init__(self, parent=None):
@@ -33,9 +35,21 @@ class TituloModal(QDialog):
             id_hidden.setText(str(data['id']))
         layout.addWidget(id_hidden, 0, 0)
 
+        self.comunas_formatted_list = [
+                    comuna.upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+                    for comuna in Comunas_list
+                ]
+
+        self.completer = QCompleter(self.comunas_formatted_list)
+        self.completer.setCompletionMode(QCompleter.InlineCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        
         cbr_label = QLabel("CBR:")
         layout.addWidget(cbr_label, 2, 0)
         cbr = QLineEdit()
+        cbr.setCompleter(self.completer)
+        cbr.returnPressed.connect(self.select_completion)
+        cbr.textChanged.connect(lambda: self.parent().to_uppercase(cbr))
         if data:
             cbr.setText(data['cbr'])
         layout.addWidget(cbr, 2, 1)
@@ -66,6 +80,7 @@ class TituloModal(QDialog):
         anio_label = QLabel("Año:")
         layout.addWidget(anio_label, 6, 0)
         anio = QLineEdit()
+        anio.setMaxLength(4)
         anio.setValidator(QIntValidator())
         if data:
             anio.setText(data['anio'])
@@ -79,6 +94,11 @@ class TituloModal(QDialog):
         list_item.setSizeHint(container.sizeHint())
         self.inscription_list.addItem(list_item)
         self.inscription_list.setItemWidget(list_item, container)
+    
+    def select_completion(self):
+        if self.completer.completionCount() > 0:
+            self.sender().setText(self.completer.currentCompletion())
+        self.sender().focusNextPrevChild(True)
 
 
     def delete_inscription(self, container, inscription_id=None):
