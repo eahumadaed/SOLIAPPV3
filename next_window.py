@@ -11,6 +11,7 @@ from UsuarioModal import UsuarioModal
 from DetallesModal import DetallesModal
 from datetime import datetime
 from HistoryModal import HistoryModal
+import time
 
 class NextWindow(QMainWindow):
     def __init__(self, user_id, user_name,Cantidad):
@@ -27,6 +28,7 @@ class NextWindow(QMainWindow):
         self.api_base_url = self.API_BASE_URL
         self.setWindowTitle("SOLICITUD Formulario")
         self.setGeometry(1, 30, 1980, 1080)
+        self.tipos_with_extra_form = ['OTROS', 'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD']
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -320,7 +322,7 @@ class NextWindow(QMainWindow):
             self.section_title_2.show()
             self.add_inscripcion_button.show()
             self.add_inscripcion_button.setFocus()
-        elif tipo == 'OTROS':
+        elif tipo in self.tipos_with_extra_form:
             self.extra_form_widget.show()
         else:
             pass
@@ -412,7 +414,8 @@ class NextWindow(QMainWindow):
             tipo_documento_index = self.tipo_and_right_layout.findText(tipo_documento)
             self.tipo_and_right_layout.setCurrentIndex(tipo_documento_index)
             self.toggle_extra()
-            if tipo_documento == "OTROS":
+
+            if tipo_documento in self.tipos_with_extra_form:
                 self.fill_extra_fields(formulario)
             
         except requests.RequestException as e:
@@ -757,9 +760,11 @@ class NextWindow(QMainWindow):
             response = requests.post('https://api.loverman.net/dbase/dga2024/apiv3/api.php?action=saveForm', json=form_data)
             print(f"Response: {response.text}")
             response.raise_for_status()
+            
             if not silence:
                 self.show_message("Info", "Guardar", "Formulario guardado exitosamente.")
                 print("Formulario guardado:", form_data)
+                
         except requests.RequestException as e:
             if not silence:
                 self.show_message("Error", "Error al guardar formulario", str(e))
@@ -861,8 +866,6 @@ class NextWindow(QMainWindow):
 
             terminados_count = response_data['terminados_count'] if "terminados_count" in response_data else  "<Sin respuesta>"
             
-            self.set_title(terminados_count)
-                
             history_record = {
                 "trabajo":self.current_trabajo_info['trabajo'],
                 "estado_anterior": self.current_trabajo_info['estado_anterior'],
@@ -874,6 +877,8 @@ class NextWindow(QMainWindow):
             self.session_history.insert(0, history_record)
 
             self.show_message("Info", "Estado Actualizado", f"El estado del trabajo se ha actualizado a {estado}.")
+            time.sleep(0.5)
+            self.set_title(terminados_count)
             self.scroll_area.verticalScrollBar().setValue(0)
             
         except requests.RequestException as e:
