@@ -36,6 +36,7 @@ class NextWindow(QMainWindow):
 
         self.pdf_paths = []
         self.entries = []
+        self.message_labels = {}
         self.form_widget = QWidget()
         self.form_layout = QVBoxLayout(self.form_widget)
         
@@ -157,10 +158,10 @@ class NextWindow(QMainWindow):
         self.principal_layout = QGridLayout()
         self.form_layout.addLayout(self.principal_layout)
 
-        SOLICITUD_entry = self.add_input_field("SOLICITUD", "select", ['--','B.1', 'B.2','B.3','B.4','B.5','B.6','B.7','B.8','B.9'],parent_layout=self.principal_layout,row=0, col=0)
+        SOLICITUD_entry = self.add_input_field("SOLICITUD", "select", ['--','B.1', 'B.2','B.3','B.4','B.5','B.6','B.7','B.8','B.9', 'NO INDICA', 'SIN SOLICITUD', 'CORTADA'],parent_layout=self.principal_layout,row=0, col=0)
         self.add_input_field("F_RECEPCION", "date", parent_layout=self.principal_layout, row=0, col=1)
 
-        SOLICITUD_entry.setFixedWidth(50)
+        SOLICITUD_entry.setFixedWidth(130)
         self.add_section_title("USUARIO")
         self.user_layout = QGridLayout()
         self.form_layout.addLayout(self.user_layout)
@@ -171,8 +172,8 @@ class NextWindow(QMainWindow):
 
         self.add_input_field("NAC", "select", ['--','CHILENA','EXTRANJERA'], parent_layout=self.user_layout, row=1, col=0)
         self.add_input_field("TIPO", "select", ['--','NATURAL','JURIDICA'], parent_layout=self.user_layout, row=1, col=1)
-        self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=1, col=2)
-        self.add_input_field("NOMBRE", "text", parent_layout=self.user_layout, row=2, col=0)
+        self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=2, col=0)
+        self.add_input_field("NOMBRE", "text", parent_layout=self.user_layout, row=2, col=1)
         self.add_input_field("PARTERNO", "text", parent_layout=self.user_layout, row=3, col=0)
         self.add_input_field("MATERNO", "text", parent_layout=self.user_layout, row=3, col=1)
 
@@ -206,19 +207,19 @@ class NextWindow(QMainWindow):
         self.add_inscription_button = QPushButton("Agregar Inscripción", self)
         self.add_inscription_button.clicked.connect(self.open_inscription_modal)
         self.form_layout.addWidget(self.add_inscription_button)
-        # self.add_section_title("TIPO TRANSACCIÓN Y TIPO DE DERECHO")
-        # self.transaction_and_right_layout = QGridLayout()
-        # self.form_layout.addLayout(self.transaction_and_right_layout)
-        # self.add_input_field("TIPO TRANSACCIÓN", "select", ['--', 'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD', 'OTROS'], parent_layout=self.transaction_and_right_layout, row=0, col=0)
-        # self.add_input_field("TIPO DERECHO", "select", ['--', 'PERFECTO', 'IMPERFECTO'], parent_layout=self.transaction_and_right_layout, row=0, col=1)
-
+        self.add_inscription_label = QLabel("(*) Inscripciones del menú   ")
+        self.add_inscription_label.setStyleSheet("color: gray; font-size: 12px; font-style: italic;")
+        self.add_inscription_label.setAlignment(Qt.AlignRight)
+        self.form_layout.addWidget(self.add_inscription_label)
 
         self.add_section_title("TIPO DE DOCUMENTO")
         self.tipo_and_right_layout  = QComboBox()
         self.tipo_and_right_layout.wheelEvent = lambda event: event.ignore()
-        opciones = ["--","SENTENCIA", "RESOLUCION DGA", "COMPRAVENTA", "COMUNIDAD DE AGUAS", "OTROS", "SIN DOC. AGUAS",'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD']
+        opciones = ["--","SENTENCIA", "RESOLUCION DGA", "COMUNIDAD DE AGUAS", "COMPRAVENTA", "SIN DOC. AGUAS", "OTROS",'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD']
         self.tipo_and_right_layout.addItems(opciones)
-        self.tipo_and_right_layout.currentIndexChanged.connect(self.toggle_extra)
+        self.tipo_and_right_layout.currentIndexChanged.connect(lambda: self.toggle_extra())
+        self.tipo_and_right_layout.currentIndexChanged.connect(lambda: self.validate_fields())
+        self.tipo_and_right_layout.focusOutEvent = self.wrap_focus_out_event(self.tipo_and_right_layout.focusOutEvent)
         self.form_layout.addWidget(self.tipo_and_right_layout)
         
       
@@ -228,9 +229,14 @@ class NextWindow(QMainWindow):
         self.add_inscripcion_button = QPushButton("Agregar Titulo Anterior", self)
         self.form_layout.addWidget(self.add_inscripcion_button)
         self.add_inscripcion_button.clicked.connect(self.open_titulo_anterior_modal)
+        self.add_inscripcion_label = QLabel("(*) Título anterior mencionado en la inscripción")
+        self.add_inscripcion_label.setStyleSheet("color: gray; font-size: 12px; font-style: italic;")
+        self.add_inscripcion_label.setAlignment(Qt.AlignRight)
+        self.form_layout.addWidget(self.add_inscripcion_label)
         
         self.section_title_2.hide()
         self.add_inscripcion_button.hide()
+        self.add_inscripcion_label.hide()
         
         self.extra_form_widget = QWidget(self)
         self.extra_form_layout = QVBoxLayout(self.extra_form_widget)
@@ -283,10 +289,13 @@ class NextWindow(QMainWindow):
         # INTERNO
         self.extra_form_obs_widget = QWidget(self)
         self.extra_form_obs_layout = QVBoxLayout(self.extra_form_obs_widget)
-        self.add_input_field("OBS", "select", ['--','SIN RUT', 'PERFECTO','NO SE LEE'], parent_layout=self.extra_form_obs_layout)
+        self.add_input_field("OBS", "select", ['--', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'], parent_layout=self.extra_form_obs_layout)
+        self.add_label(key="sugerencia",text="", color="#2C3E50", layout=self.extra_form_obs_layout)
         self.add_section_title("INTERNO", parent_layout=self.extra_form_obs_layout)
         self.add_input_field("COMENTARIO", "textarea", parent_layout=self.extra_form_obs_layout)
         self.extra_form_obs_widget.hide()
+        sugerencia_label = self.message_labels['sugerencia']
+        sugerencia_label.hide()
         self.form_layout.addWidget(self.extra_form_obs_widget)
         
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -298,12 +307,20 @@ class NextWindow(QMainWindow):
         self.submit_button = QPushButton("Registrar", self)
         self.submit_button.clicked.connect(self.submit_form)
         self.middle_layout.addWidget(self.submit_button)
+    
+    def add_label(self, key, text, color="black", layout=None):
+        layout = self.form_layout if not layout else layout
+        message_label = QLabel(text)
+        self.message_labels[key] = message_label
+        message_label.setStyleSheet(f"color: {color};")
+        message_label.setAlignment(Qt.AlignRight)
+        layout.addWidget(message_label)
         
     def skip_inscription(self):
         if not self.current_trabajo_id or not self.current_formulario_id:
             self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de presionar el boton.")
             return
-        self.save_form(True)
+        self.save_form(silence=True)
         self.update_trabajo_estado("Pendiente")
         self.load_trabajos()
         self.clear_pdf_viewer()
@@ -312,21 +329,57 @@ class NextWindow(QMainWindow):
         self.skip_inscription_button.setEnabled(False)
         
 
-    def toggle_extra(self):
+    def toggle_extra(self, obs_option=None):
         tipo = self.tipo_and_right_layout.currentText()
+        sugerencia_label = self.message_labels['sugerencia']
+
+        # Ocultar secciones por defecto
         self.section_title_2.hide()
         self.add_inscripcion_button.hide()
+        self.add_inscripcion_label.hide()
         self.extra_form_widget.hide()
         self.extra_form_obs_widget.hide()
+        sugerencia_label.hide()
+
+        # Verifica si `obs_option` es None para evitar errores
+        obs_entry = None
+        for label, entry in self.entries:
+            if label == 'OBS':
+                obs_entry = entry
+                break
+
+        if obs_entry:
+            current_obs = obs_option if obs_option else entry.currentText()
+            obs_entry.clear()
+            
+            # Agregar los elementos de acuerdo al tipo
+            if tipo == 'COMPRAVENTA':
+                obs_entry.addItems(['--', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+            elif tipo in self.tipos_with_extra_form:
+                obs_entry.addItems(['--', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+            elif tipo != "--":
+                obs_entry.addItems(["--", "SIN RUT"])
+            else:
+                obs_entry.addItems(["--"])
+
+            
+            new_index = obs_entry.findText(str(current_obs))
+            new_index = 0 if new_index == -1 else new_index
+            obs_entry.setCurrentIndex(new_index)
+
+        # Mostrar secciones adicionales basadas en `tipo`
         if tipo == 'COMPRAVENTA':
             self.section_title_2.show()
             self.add_inscripcion_button.show()
-            self.add_inscripcion_button.setFocus()
-        elif tipo in self.tipos_with_extra_form:
+            self.add_inscripcion_label.show()
+        
+        if tipo in self.tipos_with_extra_form:
             self.extra_form_widget.show()
-        else:
-            pass
-        self.extra_form_obs_widget.show()
+        if tipo != "--":
+            self.extra_form_obs_widget.show()
+            sugerencia_label.show()
+
+        
 
     def fill_form(self, formulario):
         self.clear_form()
@@ -413,10 +466,11 @@ class NextWindow(QMainWindow):
             tipo_documento = formulario.get("tipo_documento", "--")
             tipo_documento_index = self.tipo_and_right_layout.findText(tipo_documento)
             self.tipo_and_right_layout.setCurrentIndex(tipo_documento_index)
-            self.toggle_extra()
-
+            self.toggle_extra(obs_option=formulario.get("OBS"))
+            print(formulario.get("OBS"))
             if tipo_documento in self.tipos_with_extra_form:
                 self.fill_extra_fields(formulario)
+            
             
         except requests.RequestException as e:
             self.show_message("Error", "Error al cargar el formulario", str(e))
@@ -482,23 +536,26 @@ class NextWindow(QMainWindow):
             selected_item = selected_items[0]
             selected_trabajo_id = selected_item.data(Qt.UserRole)
             
-            if self.current_trabajo_id is not None and self.current_trabajo_id != selected_trabajo_id:
-                self.save_form(True)
-
-            self.current_trabajo_id = selected_trabajo_id
-            
             item_info = selected_item.text()
-
             self.current_trabajo_info = {
                 "trabajo": item_info.split("(")[0].strip(),
                 "estado_anterior": item_info.split("(")[-1].replace(")","").strip()
             }
+            
+            if self.current_trabajo_id is not None and self.current_trabajo_id != selected_trabajo_id and self.current_trabajo_info['estado_anterior']!="Terminado":
+                self.save_form(silence=True)
+
+            self.current_trabajo_id = selected_trabajo_id
+            
+            
 
             if self.current_trabajo_info['estado_anterior']=="Terminado":
                 self.skip_inscription_button.setEnabled(False)
             
             print(f"Trabajo seleccionado: {selected_trabajo_id}")
             self.load_formulario(selected_trabajo_id)
+            self.toggle_extra()
+            self.validate_fields()
             self.clear_pdf_list()
             self.clear_pdf_viewer()
             self.load_pdfs(selected_trabajo_id)
@@ -604,7 +661,7 @@ class NextWindow(QMainWindow):
         self.splitter.addWidget(self.browser)
         self.splitter.setSizes([800, 400])
 
-    def add_input_field(self, label_text, field_type="text", options=None, parent_layout=None, row=0, col=0, size=None):
+    def add_input_field(self, label_text, field_type="text", options=None, parent_layout=None, row=0, col=0, size=None, col_span=1):
         if parent_layout is None:
             parent_layout = self.form_layout
         container = QFrame(self.form_widget)
@@ -628,6 +685,7 @@ class NextWindow(QMainWindow):
             if label_text == "CBR":
                 entry.setCompleter(self.completer)
                 entry.returnPressed.connect(self.select_completion)
+            entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
                 
         elif field_type == "number":
             entry = QLineEdit()
@@ -636,11 +694,14 @@ class NextWindow(QMainWindow):
                 entry.setFixedWidth(size)
             if label_text == "AÑO":
                 entry.setMaxLength(4)
+            entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
         elif field_type == "select":
             entry = QComboBox()
             entry.wheelEvent = lambda event: event.ignore()
             if options:
                 entry.addItems(options)
+            entry.currentIndexChanged.connect(lambda: self.validate_fields())
+            entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
         elif field_type == "date":
             entry = QLineEdit()
             entry.setPlaceholderText("--/--/----")
@@ -650,26 +711,42 @@ class NextWindow(QMainWindow):
             date_validator = QRegExpValidator(date_regex)
             entry.setValidator(date_validator)
             entry.textChanged.connect(lambda: self.auto_format_date(entry))
+            entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
         elif field_type == "checkbox":
             entry = QCheckBox()
+            entry.stateChanged.connect(lambda: self.validate_fields())
         elif field_type == "textarea":
             entry = QTextEdit()
             entry.setMinimumHeight(100)  # Altura mínima
             entry.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum) 
             entry.textChanged.connect(lambda: self.adjust_height(entry))
             entry.textChanged.connect(lambda: self.to_uppercase(entry))
+            entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
         else:
             raise ValueError(f"Tipo de campo desconocido: {field_type}")
+        entry.focusInEvent = self.wrap_focus_in_event(entry, entry.focusInEvent)
 
         container_layout.addWidget(entry)
         self.entries.append((label_text, entry))
 
         if isinstance(parent_layout, QGridLayout):
-            parent_layout.addWidget(container, row, col)
+            parent_layout.addWidget(container, row, col, 1, col_span)
         else:
             parent_layout.addWidget(container)
         print(f"Campo agregado: {label_text}, tipo: {field_type}")
         return entry
+    
+    def wrap_focus_in_event(self, entry, original_event):
+        def wrapped_event(event):
+            entry.setStyleSheet("")
+            return original_event(event)
+        return wrapped_event    
+    
+    def wrap_focus_out_event(self, original_event):
+        def wrapped_event(event):
+            self.validate_fields()  # Ejecutar validación
+            return original_event(event)  # Llamar al evento original
+        return wrapped_event
     
     def select_completion(self):
         if self.completer.completionCount() > 0:
@@ -733,10 +810,7 @@ class NextWindow(QMainWindow):
                 break
         self.show_message("Info", "Buscar RUT", f"Buscando información para RUT: {rut}")
 
-    def save_form(self,silence=False):
-        if not self.current_trabajo_id or not self.current_formulario_id:
-            self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de guardar.")
-            return
+    def get_form_data(self, clean_data=False):
         form_data = {}
         for label_text, entry in self.entries:
             if isinstance(entry, QLineEdit):
@@ -749,13 +823,214 @@ class NextWindow(QMainWindow):
                 form_data[label_text] = {"type": "QTextEdit", "value": entry.toPlainText()}
             elif isinstance(entry, QDateEdit):
                 form_data[label_text] = {"type": "QDateEdit", "value": entry.date().toString("dd/MM/yyyy")}
-
         form_data['user_id'] = self.user_id
         form_data['trabajo_id'] = self.current_trabajo_id
         form_data['formulario_id'] = self.current_formulario_id
         form_data['tipo_doc'] = self.tipo_and_right_layout.currentText()
-        print("Datos del formulario que se enviarán:", json.dumps(form_data, indent=4))
+        
+        if clean_data:
+            tipo_doc = form_data['tipo_doc']
+            fields_to_empty = [
+                'NATURALEZA DEL AGUA',
+                'TIPO DE DERECHO',
+                'NOMBRE DE COMUNIDAD',
+                'PROYECTO DE PARCELACIÓN',
+                'SITIO',
+                'PARCELA',
+                'EJERCICIO DEL DERECHO',
+                'METODO DE EXTRACCION',
+                'CANTIDAD',
+                'UNIDAD',
+                'UTM NORTE',
+                'UTM ESTE',
+                'UNIDAD UTM',
+                'HUSO',
+                'DATUM',
+                'PTOS CONOCIDOS DE CAPTACION',
+            ]
+                
+            if tipo_doc not in self.tipos_with_extra_form or tipo_doc=='SIN DOC. AGUAS' or tipo_doc=='--':
+                for field in fields_to_empty:
+                    if field in form_data:
+                        if form_data[field]['type'] == 'QComboBox':
+                            form_data[field]['value'] = '--'
+                        elif form_data[field]['type'] == 'QCheckBox':
+                            form_data[field]['value'] = False
+                        else:
+                            form_data[field]['value'] = ''
+            if tipo_doc == "--":
+                if 'OBS' in form_data:
+                    form_data['OBS']['value'] = '--'
+                if 'COMENTARIO' in form_data:
+                    form_data['COMENTARIO'] = ''
+        
+        return form_data
 
+    def validate_fields(self):
+        form_data = self.get_form_data()
+        wrong_entries = []
+        
+        def add_wrong_entry(wrong_entry):
+            wrong_entries.append(wrong_entry)
+        
+        def get_value(label_text):
+            value = form_data[label_text]['value']
+            if isinstance(value, str):
+                value = value.replace("\n", " ").strip()
+            if value == "--":
+                value = ""
+            return value
+
+        def add_red_borders():
+            for label_text, entry in self.entries:
+                if label_text in wrong_entries:
+                    entry.setStyleSheet("border-bottom: 2px solid red; border-radius: 0px;")
+                else:
+                    entry.setStyleSheet("")
+            if 'tipo_doc' in wrong_entries:
+                self.tipo_and_right_layout.setStyleSheet("border-bottom: 2px solid red; border-radius: 0px;")
+            else:
+                self.tipo_and_right_layout.setStyleSheet("")
+                
+        tipo_doc = form_data['tipo_doc']
+                    
+        if not get_value('SOLICITUD'): add_wrong_entry('SOLICITUD')
+        if not get_value('F_RECEPCION'): add_wrong_entry('F_RECEPCION')
+        if not tipo_doc or tipo_doc=="--": add_wrong_entry('tipo_doc')
+        
+        if not tipo_doc == "SIN DOC. AGUAS":
+            if not get_value('CBR'): add_wrong_entry('CBR')
+            if not get_value('FOJA'): add_wrong_entry('FOJA')
+            if not get_value('N°'): add_wrong_entry('N°')
+            if not get_value('AÑO'): add_wrong_entry('AÑO')
+        else:
+            if get_value('F_INSCRIPCION'): add_wrong_entry('F_INSCRIPCION')
+            if get_value('CBR'): add_wrong_entry('CBR')
+            if get_value('FOJA'): add_wrong_entry('FOJA')
+            if get_value('V'): add_wrong_entry('V')
+            if get_value('N°'): add_wrong_entry('N°')
+            if get_value('AÑO'): add_wrong_entry('AÑO')
+        
+        if tipo_doc in self.tipos_with_extra_form and tipo_doc!="--":
+            obs_value = get_value('OBS')
+            if not obs_value: 
+                add_wrong_entry('OBS')
+            if( 
+               obs_value!='PERFECTO' and
+               obs_value!='PERFECCIONADO AL MARGEN' and
+               obs_value!='SIN RUT' and
+               obs_value!='NO SE LEE' and 
+               obs_value!="NO CARGA" and not
+               get_value('PTOS CONOCIDOS DE CAPTACION')
+            ):
+                add_wrong_entry('PTOS CONOCIDOS DE CAPTACION')
+            
+        if get_value('OBS')!="SIN RUT":
+            tipo_value = get_value('TIPO')
+            if not tipo_value: add_wrong_entry('TIPO')
+            if not get_value('RUT'): add_wrong_entry('RUT')
+            if not get_value('NOMBRE'): add_wrong_entry('NOMBRE')
+            if tipo_value == 'NATURAL':
+                if not get_value('NAC'): add_wrong_entry('NAC')
+                if not get_value('GENERO'): add_wrong_entry('GENERO')
+                if not get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+            if tipo_value == 'JURIDICA':
+                if get_value('NAC'): add_wrong_entry('NAC')
+                if get_value('GENERO'): add_wrong_entry('GENERO')
+                if get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+        else:
+            if get_value('RUT'): add_wrong_entry('RUT')
+            if get_value('NAC'): add_wrong_entry('NAC')
+            if get_value('TIPO'): add_wrong_entry('TIPO')
+            if get_value('GENERO'): add_wrong_entry('GENERO')
+            if get_value('NOMBRE'): add_wrong_entry('NOMBRE')
+            if get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+            if get_value('MATERNO'): add_wrong_entry('MATERNO')
+                    
+        add_red_borders()
+        
+        sugerencia=""
+        if tipo_doc!="--":
+            if not get_value('RUT'):
+                sugerencia = "SIN RUT"
+            elif tipo_doc!='SIN DOC. AGUAS' and(
+                not get_value('CBR') or
+                not get_value('FOJA') or
+                not get_value('N°') or
+                not get_value('AÑO')
+            ):
+                sugerencia="COMPLETAR INSCRIPCION"
+            elif tipo_doc in self.tipos_with_extra_form:
+                if(
+                    get_value('NATURALEZA DEL AGUA') and
+                    get_value('TIPO DE DERECHO') and
+                    get_value('EJERCICIO DEL DERECHO') and
+                    get_value('UTM NORTE') and
+                    get_value('UTM ESTE') and
+                    get_value('CANTIDAD') and
+                    get_value('UNIDAD')
+                ):
+                    sugerencia = "PERFECTO"
+                elif(
+                    get_value('NATURALEZA DEL AGUA') and
+                    get_value('TIPO DE DERECHO') and
+                    get_value('EJERCICIO DEL DERECHO') and
+                    get_value('CANTIDAD') and
+                    get_value('UNIDAD')
+                ):
+                    sugerencia = "POSIBLE PERFECTO (Verificar punto de captación)"
+                elif(
+                    get_value('NATURALEZA DEL AGUA') and
+                    get_value('TIPO DE DERECHO') and
+                    get_value('EJERCICIO DEL DERECHO')
+                ):
+                    sugerencia = "POSIBLE PERFECTO (Verificar caudal y punto de captación)"
+                    
+                elif(
+                    not get_value('NATURALEZA DEL AGUA') or
+                    not get_value('TIPO DE DERECHO') or
+                    not get_value('EJERCICIO DEL DERECHO')
+                ):
+                    sugerencia = "IMPERFECTO"
+                    
+        sugerencia_label = self.message_labels['sugerencia']
+        
+        sugerencia_text = f"SUGERENCIA: {sugerencia}" if sugerencia else ""
+        sugerencia_label.setText(sugerencia_text)
+            
+        add_red_borders()
+        
+        
+        return wrong_entries
+    
+    def save_form(self,silence=False, clean_data=False):
+        if not self.current_trabajo_id or not self.current_formulario_id:
+            self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de guardar.")
+            return
+        if not clean_data and  self.current_trabajo_info['estado_anterior']=="Terminado":
+            wrong_entries = self.validate_fields()
+            if wrong_entries:
+                self.show_message("Error", "Verificar campos", f"Verificar los siguientes campos: \n- {"\n- ".join(wrong_entries)}")
+                return
+            
+            tipo_doc = self.tipo_and_right_layout.currentText()
+            if tipo_doc == "COMPRAVENTA":
+                form_data = self.get_form_data()
+                titulos_anteriores = self.get_titulos_anteriores()
+                obs= form_data['OBS']['value']
+                if isinstance(titulos_anteriores, list) and not titulos_anteriores and obs != "SIN RUT" and obs != "NO SE LEE" and obs != "NO CARGA":
+                    if self.current_trabajo_info['estado_anterior']=="Terminado":
+                        self.show_message("Error", "Ingresar título anterior", "Debes ingresar un título anterior para la compraventa")
+                        return
+            else:
+                self.delete_titulos_anteriores()
+        
+        clean_data = True if self.current_trabajo_info['estado_anterior']=="Terminado" else clean_data
+        
+        form_data = self.get_form_data(clean_data=clean_data)
+        
+        #print("Datos del formulario que se enviarán:", json.dumps(form_data, indent=4))
+        
         try:
             response = requests.post('https://api.loverman.net/dbase/dga2024/apiv3/api.php?action=saveForm', json=form_data)
             print(f"Response: {response.text}")
@@ -769,7 +1044,8 @@ class NextWindow(QMainWindow):
             if not silence:
                 self.show_message("Error", "Error al guardar formulario", str(e))
                 print(f"Error al guardar formulario: {e}")
-
+        
+        
     def load_form(self, trabajo_id):
         self.section_title_2.hide()
         self.add_inscripcion_button.hide()
@@ -812,7 +1088,7 @@ class NextWindow(QMainWindow):
         except requests.RequestException as e:
             print(f"Fallo cargar: {e}")
             self.show_message("Error", "Error al cargar formulario", str(e))
-            
+    
     def clear_form(self):
         for _, entry in self.entries:
             if isinstance(entry, QLineEdit):
@@ -826,12 +1102,54 @@ class NextWindow(QMainWindow):
             elif isinstance(entry, QCheckBox):
                 entry.setChecked(False)
         print("Formulario limpiado")
+        
+    def get_titulos_anteriores(self):
+        try:
+            response = requests.get(f'{self.api_base_url}getInscriptions_anterior&formulario_id={self.current_formulario_id}')
+            response.raise_for_status()
+            inscriptions_data = response.json()
+            return inscriptions_data
+        except requests.RequestException as e:
+            print(f"Error al cargar inscripciones: {e}")
+            self.show_message("Error", "Error verificar títulos anteriores", str(e))
+            return None
+        
+    def delete_titulos_anteriores(self):
+        try:
+            response = requests.get(f'{self.api_base_url}getInscriptions_anterior&formulario_id={self.current_formulario_id}')
+            response.raise_for_status()
+            inscriptions_data = response.json()
+            if isinstance(inscriptions_data, list):
+                for inscription in inscriptions_data:
+                    inscription_id = inscription['id']
+                    response = requests.post(f'{self.api_base_url}deleteInscripcion_anterior', json={'id': inscription_id})
+                    response.raise_for_status()
+                    print(f"TITULO ANTERIOR ELIMINADO: {inscription}")
+        except requests.RequestException as e:
+            self.parent().show_message("Error", "Error al eliminar titulos anteriores", str(e))
 
     def submit_form(self):
         if not self.current_trabajo_id or not self.current_formulario_id:
             self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de guardar.")
             return
-        self.save_form()
+        
+        wrong_entries = self.validate_fields()
+        if wrong_entries:
+            self.show_message("Error", "Completar campos obligatorios", f"Completar los campos faltantes: \n- {"\n- ".join(wrong_entries)}")
+            return
+        
+        tipo_doc = self.tipo_and_right_layout.currentText()
+        if tipo_doc == "COMPRAVENTA":
+            form_data = self.get_form_data()
+            titulos_anteriores = self.get_titulos_anteriores()
+            obs = form_data['OBS']['value']
+            if isinstance(titulos_anteriores, list) and not titulos_anteriores and obs != "SIN RUT" and obs != "NO SE LEE" and obs != "NO CARGA":
+                self.show_message("Error", "Ingresar título anterior", "Debes ingresar un título anterior para la compraventa")
+                return
+        else:
+            self.delete_titulos_anteriores()
+        
+        self.save_form(clean_data=True)
         self.update_trabajo_estado("Terminado")
         self.load_trabajos()
         self.clear_pdf_viewer()
@@ -997,6 +1315,7 @@ class NextWindow(QMainWindow):
             entry.blockSignals(False)
         except:
             pass
+        self.validate_fields()
         QLineEdit.focusOutEvent(entry, event)
         
     def calculate_dv(self, rut):
