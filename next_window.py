@@ -251,6 +251,7 @@ class NextWindow(QMainWindow):
         self.add_input_field("PROYECTO DE PARCELACIÓN", "text", parent_layout=self.extra_form_layout)
         self.add_input_field("SITIO", "text", parent_layout=self.extra_form_layout)
         self.add_input_field("PARCELA", "text", parent_layout=self.extra_form_layout)
+        self.add_input_field("COMUNA", "select", Comunas_list, parent_layout=self.extra_form_layout)
 
         # USUARIOS
         self.add_section_title("USUARIOS", parent_layout=self.extra_form_layout)
@@ -262,7 +263,7 @@ class NextWindow(QMainWindow):
 
         # EJERCICIO
         self.add_section_title("EJERCICIO", parent_layout=self.extra_form_layout)
-        self.add_input_field("EJERCICIO DEL DERECHO", "select", ['--','PERMANENTE Y CONTINUO', 'EVENTUAL Y CONTINUO', 'PERM. Y CONT. Y PROVICIONALES'], parent_layout=self.extra_form_layout)
+        self.add_input_field("EJERCICIO DEL DERECHO", "select", ['--','PERMANENTE Y CONTINUO', 'EVENTUAL Y CONTINUO','PERM. Y CONT. Y PROVICIONALES','SIN EJERCICIO','PERM. Y DISC. Y PROVICIONALES','PERM Y ALTER. Y PROVICIONALES','EVENTUAL Y DISCONTINUO','EVENTUAL Y ALTERNADO','PERMANENTE Y DISCONTINUO','PERMANENTE Y ALTERNADO'], parent_layout=self.extra_form_layout)
         self.add_input_field("METODO DE EXTRACCION", "select", ['--','MECANICA','GRAVITACIONAL','MECANICA Y/O GRAVITACIONAL'], parent_layout=self.extra_form_layout)
 
         # CAUDAL
@@ -486,6 +487,7 @@ class NextWindow(QMainWindow):
             'proyecto_parcelacion': "PROYECTO DE PARCELACIÓN",
             'sitio': "SITIO",
             'parcela': "PARCELA",
+            'comuna': "COMUNA",
             'ejercicio_derecho': "EJERCICIO DEL DERECHO",
             'metodo_extraccion': "METODO DE EXTRACCION",
             'cantidad': "CANTIDAD",
@@ -837,6 +839,7 @@ class NextWindow(QMainWindow):
                 'PROYECTO DE PARCELACIÓN',
                 'SITIO',
                 'PARCELA',
+                'COMUNA',
                 'EJERCICIO DEL DERECHO',
                 'METODO DE EXTRACCION',
                 'CANTIDAD',
@@ -898,19 +901,12 @@ class NextWindow(QMainWindow):
         if not get_value('F_RECEPCION'): add_wrong_entry('F_RECEPCION')
         if not tipo_doc or tipo_doc=="--": add_wrong_entry('tipo_doc')
         
-        if not tipo_doc == "SIN DOC. AGUAS":
+        if tipo_doc != "SIN DOC. AGUAS":
             if not get_value('CBR'): add_wrong_entry('CBR')
             if not get_value('FOJA'): add_wrong_entry('FOJA')
             if not get_value('N°'): add_wrong_entry('N°')
             if not get_value('AÑO'): add_wrong_entry('AÑO')
-        else:
-            if get_value('F_INSCRIPCION'): add_wrong_entry('F_INSCRIPCION')
-            if get_value('CBR'): add_wrong_entry('CBR')
-            if get_value('FOJA'): add_wrong_entry('FOJA')
-            if get_value('V'): add_wrong_entry('V')
-            if get_value('N°'): add_wrong_entry('N°')
-            if get_value('AÑO'): add_wrong_entry('AÑO')
-        
+
         if tipo_doc in self.tipos_with_extra_form and tipo_doc!="--":
             obs_value = get_value('OBS')
             if not obs_value: 
