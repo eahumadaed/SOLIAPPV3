@@ -3,14 +3,14 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt, QDate, QEvent,QRegExp
 from PyQt5.QtGui import QIntValidator,QRegExpValidator, QColor
 import requests,json,sys,re
-from comunas import Comunas_list
-from InscriptionModal import InscriptionModal
-from ResolucionModal import ResolucionModal
-from Titulo_Anterior_Modal import TituloModal
-from UsuarioModal import UsuarioModal
-from DetallesModal import DetallesModal
+from data.comunas import Comunas_list
+from windows.InscriptionModal import InscriptionModal
+from windows.ResolucionModal import ResolucionModal
+from windows.Titulo_Anterior_Modal import TituloModal
+from windows.UsuarioModal import UsuarioModal
+from windows.DetallesModal import DetallesModal
 from datetime import datetime
-from HistoryModal import HistoryModal
+from windows.HistoryModal import HistoryModal
 import time
 
 class NextWindow(QMainWindow):
@@ -901,7 +901,7 @@ class NextWindow(QMainWindow):
         if not get_value('F_RECEPCION'): add_wrong_entry('F_RECEPCION')
         if not tipo_doc or tipo_doc=="--": add_wrong_entry('tipo_doc')
         
-        if tipo_doc != "SIN DOC. AGUAS":
+        if tipo_doc != "SIN DOC. AGUAS" and tipo_doc != "SENTENCIA" and  tipo_doc != "RESOLUCION DGA":
             if not get_value('CBR'): add_wrong_entry('CBR')
             if not get_value('FOJA'): add_wrong_entry('FOJA')
             if not get_value('N°'): add_wrong_entry('N°')

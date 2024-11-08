@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabe
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import requests
-from comunas import Comunas_list
+from data.comunas import Comunas_list
 
 class InscriptionModal(QDialog):
     def __init__(self, parent=None):
