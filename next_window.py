@@ -3,15 +3,17 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt, QDate, QEvent,QRegExp
 from PyQt5.QtGui import QIntValidator,QRegExpValidator, QColor
 import requests,json,sys,re
-from data.comunas import Comunas_list
-from windows.InscriptionModal import InscriptionModal
-from windows.ResolucionModal import ResolucionModal
-from windows.Titulo_Anterior_Modal import TituloModal
-from windows.UsuarioModal import UsuarioModal
-from windows.DetallesModal import DetallesModal
+from comunas import Comunas_list
+from InscriptionModal import InscriptionModal
+from ResolucionModal import ResolucionModal
+from Titulo_Anterior_Modal import TituloModal
+from UsuarioModal import UsuarioModal
+from DetallesModal import DetallesModal
 from datetime import datetime
-from windows.HistoryModal import HistoryModal
+from HistoryModal import HistoryModal
 import time
+from auto_update import get_latest_version
+from version import version
 
 class NextWindow(QMainWindow):
     def __init__(self, user_id, user_name,Cantidad):
@@ -162,7 +164,7 @@ class NextWindow(QMainWindow):
         self.add_input_field("F_RECEPCION", "date", parent_layout=self.principal_layout, row=0, col=1)
 
         SOLICITUD_entry.setFixedWidth(130)
-        self.add_section_title("USUARIO")
+        self.add_section_title("SOLICITANTE")
         self.user_layout = QGridLayout()
         self.form_layout.addLayout(self.user_layout)
         self.add_input_field("RUT", "text", parent_layout=self.user_layout, row=0, col=0)
@@ -174,7 +176,7 @@ class NextWindow(QMainWindow):
         self.add_input_field("TIPO", "select", ['--','NATURAL','JURIDICA'], parent_layout=self.user_layout, row=1, col=1)
         self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=2, col=0)
         self.add_input_field("NOMBRE", "text", parent_layout=self.user_layout, row=2, col=1)
-        self.add_input_field("PARTERNO", "text", parent_layout=self.user_layout, row=3, col=0)
+        self.add_input_field("PATERNO", "text", parent_layout=self.user_layout, row=3, col=0)
         self.add_input_field("MATERNO", "text", parent_layout=self.user_layout, row=3, col=1)
 
         self.add_section_title("RESOLUCION/SENTENCIA/EP")
@@ -355,11 +357,16 @@ class NextWindow(QMainWindow):
             
             # Agregar los elementos de acuerdo al tipo
             if tipo == 'COMPRAVENTA':
-                obs_entry.addItems(['--', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+                obs_entry.addItems(['--', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+                
+            elif tipo=='SENTENCIA' or tipo=='RESOLUCION DGA':
+                obs_entry.addItems(["--", "PERFECTO", "SIN RUT", "NO SE LEE", "NO CARGA"])
+                
             elif tipo in self.tipos_with_extra_form:
                 obs_entry.addItems(['--', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+                
             elif tipo != "--":
-                obs_entry.addItems(["--", "SIN RUT"])
+                obs_entry.addItems(["--", 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
             else:
                 obs_entry.addItems(["--"])
 
@@ -402,7 +409,7 @@ class NextWindow(QMainWindow):
             'tipo': 'TIPO',
             'genero': 'GENERO',
             'nombre': 'NOMBRE',
-            'paterno': 'PARTERNO',
+            'paterno': 'PATERNO',
             'materno': 'MATERNO',
             'comentario': 'COMENTARIO',
             'tipo_transaccion': 'TIPO TRANSACCIÓN',
@@ -517,9 +524,16 @@ class NextWindow(QMainWindow):
                             entry.setPlainText(entry_value if entry_value is not None else "")
                         elif isinstance(entry, QDateEdit) and entry_value:
                             entry.setDate(QDate.fromString(entry_value, "dd/MM/yyyy"))
-        print("Campos adicionales llenados para 'OTROS'")            
+        print("Campos adicionales llenados para 'OTROS'")
+        
+    def search_updates(self):
+        latest_version, download_url = get_latest_version()
+        if latest_version and latest_version != version:
+            self.show_message("Info","Actualización disponible", "Nueva actualización disponible, reinicie programa para actualizar.")
                 
     def on_directory_select(self):
+        self.search_updates()
+        
         selected_items = []
 
         if self.sender() == self.dir_listwidget:
@@ -634,7 +648,7 @@ class NextWindow(QMainWindow):
             'TIPO': 'P',
             'GENERO': 'G',
             'NOMBRE': 'Nombre',
-            'PARTERNO': 'Apa',
+            'PATERNO': 'Apa',
             'MATERNO': 'Ama'
         }
 
@@ -907,21 +921,22 @@ class NextWindow(QMainWindow):
             if not get_value('N°'): add_wrong_entry('N°')
             if not get_value('AÑO'): add_wrong_entry('AÑO')
 
-        if tipo_doc in self.tipos_with_extra_form and tipo_doc!="--":
+        if (tipo_doc in self.tipos_with_extra_form or tipo_doc=="SENTENCIA" or tipo_doc=="RESOLUCION DGA" or tipo_doc=="COMPRAVENTA") and tipo_doc!="--":
             obs_value = get_value('OBS')
             if not obs_value: 
                 add_wrong_entry('OBS')
-            if( 
-               obs_value!='PERFECTO' and
-               obs_value!='PERFECCIONADO AL MARGEN' and
-               obs_value!='SIN RUT' and
-               obs_value!='NO SE LEE' and 
-               obs_value!="NO CARGA" and not
-               get_value('PTOS CONOCIDOS DE CAPTACION')
-            ):
-                add_wrong_entry('PTOS CONOCIDOS DE CAPTACION')
+            if tipo_doc in self.tipos_with_extra_form:
+                if( 
+                obs_value!='PERFECTO' and
+                obs_value!='PERFECCIONADO AL MARGEN' and
+                obs_value!='SIN RUT' and
+                obs_value!='NO SE LEE' and 
+                obs_value!="NO CARGA" and not
+                get_value('PTOS CONOCIDOS DE CAPTACION')
+                ):
+                    add_wrong_entry('PTOS CONOCIDOS DE CAPTACION')
             
-        if get_value('OBS')!="SIN RUT":
+        if get_value('OBS')!="SIN RUT" and not ((tipo_doc=="SENTENCIA" or tipo_doc=="RESOLUCION DGA") and get_value('OBS')=="SIN RUT"):
             tipo_value = get_value('TIPO')
             if not tipo_value: add_wrong_entry('TIPO')
             if not get_value('RUT'): add_wrong_entry('RUT')
@@ -929,18 +944,18 @@ class NextWindow(QMainWindow):
             if tipo_value == 'NATURAL':
                 if not get_value('NAC'): add_wrong_entry('NAC')
                 if not get_value('GENERO'): add_wrong_entry('GENERO')
-                if not get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+                if not get_value('PATERNO'): add_wrong_entry('PATERNO')
             if tipo_value == 'JURIDICA':
                 if get_value('NAC'): add_wrong_entry('NAC')
                 if get_value('GENERO'): add_wrong_entry('GENERO')
-                if get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+                if get_value('PATERNO'): add_wrong_entry('PATERNO')
         else:
             if get_value('RUT'): add_wrong_entry('RUT')
             if get_value('NAC'): add_wrong_entry('NAC')
             if get_value('TIPO'): add_wrong_entry('TIPO')
             if get_value('GENERO'): add_wrong_entry('GENERO')
             if get_value('NOMBRE'): add_wrong_entry('NOMBRE')
-            if get_value('PARTERNO'): add_wrong_entry('PARTERNO')
+            if get_value('PATERNO'): add_wrong_entry('PATERNO')
             if get_value('MATERNO'): add_wrong_entry('MATERNO')
                     
         add_red_borders()
@@ -1024,6 +1039,8 @@ class NextWindow(QMainWindow):
         clean_data = True if self.current_trabajo_info['estado_anterior']=="Terminado" else clean_data
         
         form_data = self.get_form_data(clean_data=clean_data)
+        
+        form_data['PARTERNO'] = form_data['PATERNO']
         
         #print("Datos del formulario que se enviarán:", json.dumps(form_data, indent=4))
         

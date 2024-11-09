@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QCompleter, QPushB
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import requests
-from data.comunas import Comunas_list
+from comunas import Comunas_list
 
 class TituloModal(QDialog):
     def __init__(self, parent=None):
