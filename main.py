@@ -3,14 +3,11 @@ import sys
 import requests
 from next_window import NextWindow
 import os
-from auto_update import main_update
-from version import version
-
 
 class UserSelectionWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f'Form. SOL + DP: {version}')
+        self.setWindowTitle('Seleccionar usuario')
         self.setGeometry(100, 100, 300, 50)
         self.center_window()
         self.layout = QVBoxLayout()
@@ -69,9 +66,4 @@ def run_app():
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
-    if os.path.basename(sys.argv[0]) != 'main.py':
-        isUpdated = main_update()
-        if isUpdated:
-            run_app()
-    else:
-        run_app()
+    run_app()
