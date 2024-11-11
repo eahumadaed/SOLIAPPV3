@@ -12,8 +12,6 @@ from DetallesModal import DetallesModal
 from datetime import datetime
 from HistoryModal import HistoryModal
 import time
-from auto_update import get_latest_version
-from version import version
 
 class NextWindow(QMainWindow):
     def __init__(self, user_id, user_name,Cantidad):
@@ -525,14 +523,8 @@ class NextWindow(QMainWindow):
                         elif isinstance(entry, QDateEdit) and entry_value:
                             entry.setDate(QDate.fromString(entry_value, "dd/MM/yyyy"))
         print("Campos adicionales llenados para 'OTROS'")
-        
-    def search_updates(self):
-        latest_version, download_url = get_latest_version()
-        if latest_version and latest_version != version:
-            self.show_message("Info","Actualización disponible", "Nueva actualización disponible, reinicie programa para actualizar.")
                 
     def on_directory_select(self):
-        self.search_updates()
         
         selected_items = []
 
