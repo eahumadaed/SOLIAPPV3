@@ -199,11 +199,14 @@ class NextWindow(QMainWindow):
         self.inscriptions_layout = QGridLayout()
         self.form_layout.addLayout(self.inscriptions_layout)
         self.add_input_field("F_INSCRIPCION", "date", parent_layout=self.inscriptions_layout, row=0, col=0)
-        self.add_input_field("CBR", "text", parent_layout=self.inscriptions_layout, row=2, col=0, size=0)
-        self.add_input_field("FOJA", "number", parent_layout=self.inscriptions_layout, row=3, col=0, size=0)
-        self.add_input_field("V", "checkbox", parent_layout=self.inscriptions_layout, row=3, col=1, size=0)
-        self.add_input_field("N°", "number", parent_layout=self.inscriptions_layout, row=3, col=2, size=0)
-        self.add_input_field("AÑO", "number", parent_layout=self.inscriptions_layout, row=3, col=3, size=0)
+        self.auto_complete_button = QPushButton("Autocompletar")
+        self.auto_complete_button.clicked.connect(self.auto_complete_inscription)
+        self.inscriptions_layout.addWidget(self.auto_complete_button, 0,3)
+        self.add_input_field("CBR", "text", parent_layout=self.inscriptions_layout, row=1, col=0, size=0)
+        self.add_input_field("FOJA", "number", parent_layout=self.inscriptions_layout, row=2, col=0, size=0)
+        self.add_input_field("V", "checkbox", parent_layout=self.inscriptions_layout, row=2, col=1, size=0)
+        self.add_input_field("N°", "number", parent_layout=self.inscriptions_layout, row=2, col=2, size=0)
+        self.add_input_field("AÑO", "number", parent_layout=self.inscriptions_layout, row=2, col=3, size=0)
         self.add_inscription_button = QPushButton("Agregar Inscripción", self)
         self.add_inscription_button.clicked.connect(self.open_inscription_modal)
         self.form_layout.addWidget(self.add_inscription_button)
@@ -308,6 +311,106 @@ class NextWindow(QMainWindow):
         self.submit_button = QPushButton("Registrar", self)
         self.submit_button.clicked.connect(self.submit_form)
         self.middle_layout.addWidget(self.submit_button)
+        
+    def get_cbr_files(self, files):
+        cbrs = []
+        for f in files:
+            f = f.replace('.pdf', '').replace("  ", " ").strip()
+            splitted_name = f.split()
+            
+            if 4 <= len(splitted_name) <= 5 and splitted_name[0].lower() != "res":
+                cbr, anio, numero, *foja_parts = splitted_name
+                cbr = cbr.upper()
+                foja = "".join(foja_parts)
+                isVta = False
+                
+                if any(caracter.isdigit() for caracter in cbr):
+                    cbr = None
+                if not anio.isdigit() or len(anio)!=4:
+                    anio = None
+                if not numero.isdigit():
+                    numero = None
+                if not foja.isdigit():
+                    if not foja[:-3].isdigit() or foja[-3:].lower()!='vta':
+                        foja = None
+                    else:
+                        foja = foja[:-3]
+                        isVta = True
+                
+                if all(var is None for var in [cbr, anio, numero, foja]):
+                    continue
+                
+                cbrs.append({
+                    'cbr': cbr,
+                    'anio': anio,
+                    'numero': numero,
+                    'foja': foja,
+                    'v': isVta
+                })
+        return cbrs
+
+    def get_latest_cbr(self, cbrs):
+        lastest_cbr_index = None
+        largest_year = None
+        largest_number = None
+        
+        for index, cbr in enumerate(cbrs):
+            anio = cbr['anio']
+            numero = cbr['numero']
+            if anio: 
+                if not largest_year or anio>largest_year:
+                    largest_year = anio
+                    largest_number = numero
+                    lastest_cbr_index = index
+                elif anio == largest_year and numero and numero>largest_number:
+                    largest_year = anio
+                    largest_number = numero
+                    lastest_cbr_index = index
+        if lastest_cbr_index:
+            return cbrs[lastest_cbr_index]
+        return None
+            
+    def auto_complete_inscription(self):
+        if not self.current_trabajo_id or not self.current_formulario_id:
+            self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de presionar el boton.")
+            return
+        cleaned_pdf_names = [path.split('/')[-1] for path in self.pdf_paths]
+        
+        cbrs = self.get_cbr_files(cleaned_pdf_names)
+        
+        latest_inscription = self.get_latest_cbr(cbrs)
+        
+        empty_f_inscripcion = False
+        f_inscription_entry = None
+
+        fields = {
+            "CBR": "cbr",
+            "FOJA": "foja",
+            "V": "v",
+            "N°": "numero",
+            "AÑO": "anio"
+        }
+
+        if latest_inscription:  
+            for label, entry in self.entries:
+                if label == "F_INSCRIPCION":
+                    f_inscription_entry = entry
+                if label in fields:
+                    field_key = fields[label]
+                    prev_value = entry.text().strip() if label != "V" else entry.isChecked()
+                    current_value = latest_inscription.get(field_key)
+
+                    if current_value != prev_value:
+                        empty_f_inscripcion = True
+
+                    if label == "V":
+                        entry.setChecked(current_value if current_value is not None else False)
+                    else:
+                        entry.setText(current_value if current_value is not None else "")
+
+                if empty_f_inscripcion:
+                    f_inscription_entry.setText("")
+
     
     def add_label(self, key, text, color="black", layout=None):
         layout = self.form_layout if not layout else layout
@@ -469,6 +572,7 @@ class NextWindow(QMainWindow):
             self.current_formulario_id = formulario.get("formulario_id")
             self.current_trabajo_id = formulario.get("trabajo_id")
             self.fill_form(formulario)
+            print(formulario)
             tipo_documento = formulario.get("tipo_documento", "--")
             tipo_documento_index = self.tipo_and_right_layout.findText(tipo_documento)
             self.tipo_and_right_layout.setCurrentIndex(tipo_documento_index)
@@ -561,12 +665,13 @@ class NextWindow(QMainWindow):
                 self.skip_inscription_button.setEnabled(False)
             
             print(f"Trabajo seleccionado: {selected_trabajo_id}")
+            self.clear_pdf_list()
+            self.load_pdfs(selected_trabajo_id) 
             self.load_formulario(selected_trabajo_id)
             self.toggle_extra()
             self.validate_fields()
-            self.clear_pdf_list()
             self.clear_pdf_viewer()
-            self.load_pdfs(selected_trabajo_id)
+            
 
     def load_pdfs(self, trabajo_id):
         try:
