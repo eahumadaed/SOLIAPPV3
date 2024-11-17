@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QVBoxLayout, QFrame, QListWidget, QPushButton, QLabel, QLineEdit, QGridLayout, QCheckBox, QDialog, QListWidgetItem
 from PyQt5.QtGui import QIntValidator
+from PyQt5.QtCore import Qt
 import requests
 
 class ResolucionModal(QDialog):
@@ -7,7 +8,7 @@ class ResolucionModal(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Gestionar Resoluciones")
         self.setGeometry(200, 200, 700, 500)
-
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint)
         self.layout = QVBoxLayout()
 
         self.resolucion_list = QListWidget(self)
@@ -15,14 +16,96 @@ class ResolucionModal(QDialog):
 
         self.add_button = QPushButton("Agregar", self)
         self.add_button.clicked.connect(self.add_resolucion)
+        self.add_button.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.add_button)
 
         self.save_button = QPushButton("Guardar", self)
         self.save_button.clicked.connect(self.save_resoluciones)
+        self.save_button.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.save_button)
 
         self.setLayout(self.layout)
         self.load_resoluciones()
+        
+    def validate_fields(self):
+        def add_wrong_field(wrong_field):
+            wrong_fields.append(wrong_field)
+        
+        def get_value(resolucion, key):
+            value = resolucion[key]['value']
+            if isinstance(value, str):
+                value = value.replace("\n", " ").strip()
+            if value == "--":
+                value = ""
+            return value
+        def add_red_borders():
+            entries = []
+            wrong_entries = []
+            for resolution in resolutions_data:
+                resolution_values = list(resolution.values())
+                for value in resolution_values:
+                    entries.append(value['entry'])
+            
+            for field in wrong_fields:
+                wrong_entries.append(field['entry'])
+            
+            for entry in entries:
+                if entry in wrong_entries:
+                    entry.setStyleSheet("border-bottom: 2px solid red; border-radius: 0px;")
+                else:
+                    entry.setStyleSheet("")
+        
+        if self.autocompletando:
+            return
+        
+        resolutions_data= []
+        
+        wrong_fields = []
+        
+        resoluciones = []
+        resoluciones_repetidas = []
+        
+        for i in range(self.resolucion_list.count()):
+            container = self.resolucion_list.itemWidget(self.resolucion_list.item(i))
+            n_resolucion_entry = container.layout().itemAt(2).widget()
+            f_resolucion_entry = container.layout().itemAt(4).widget()
+            data = {
+                'n_resolucion': {'entry': n_resolucion_entry, 'value': n_resolucion_entry.text()},
+                'f_resolucion': {'entry': f_resolucion_entry, 'value': f_resolucion_entry.text()}
+            }
+            resolutions_data.append(data)
+        
+        for resolution in resolutions_data:
+            obligatorios = list(data.keys())
+            for tipo_campo in obligatorios:
+                if not get_value(resolution, tipo_campo):
+                    add_wrong_field(resolution[tipo_campo])
+                    
+            
+            resolution_data = {}
+            resolution_keys = list(resolution.keys())
+            for key in resolution_keys:
+                resolution_data[key] = resolution[key]['value']
+                
+            if resolution_data in resoluciones:
+                resoluciones_repetidas.append(f"{resolution_data['n_resolucion']} {resolution_data['f_resolucion']}")
+            resoluciones.append(resolution_data)
+                
+        add_red_borders()
+        
+        parent_resolution = {}
+        maping = {
+            'N° DOC':'n_resolucion',
+            'F_DOC': 'f_resolucion',
+        }
+        for label, entry in self.parent().entries:
+            if label in list(maping.keys()):
+                parent_resolution[maping[label]] = entry.text()
+                
+        if parent_resolution in resoluciones:
+            resoluciones_repetidas.append(f"{parent_resolution['n_resolucion']} {parent_resolution['f_resolucion']}")
+        
+        return wrong_fields, resoluciones_repetidas
 
     def add_resolucion(self, data=None):
         container = QFrame(self)

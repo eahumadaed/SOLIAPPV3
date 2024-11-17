@@ -9,7 +9,7 @@ class TituloModal(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Gestionar Inscripciones")
         self.setGeometry(200, 200, 700, 700)
-
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint)
         self.layout = QVBoxLayout()
 
         self.inscription_list = QListWidget(self)
@@ -17,14 +17,88 @@ class TituloModal(QDialog):
 
         self.add_button = QPushButton("Agregar", self)
         self.add_button.clicked.connect(self.add_inscription)
+        self.add_button.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.add_button)
 
         self.save_button = QPushButton("Guardar", self)
         self.save_button.clicked.connect(self.save_inscriptions)
+        self.save_button.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.save_button)
 
         self.setLayout(self.layout)
         self.load_inscriptions()
+    
+    def validate_fields(self):
+        def add_wrong_field(wrong_field):
+            wrong_fields.append(wrong_field)
+        
+        def get_value(inscription, key):
+            value = inscription[key]['value']
+            if isinstance(value, str):
+                value = value.replace("\n", " ").strip()
+            if value == "--":
+                value = ""
+            return value
+        def add_red_borders():
+            entries = []
+            wrong_entries = []
+            for inscription in inscriptions_data:
+                inscription_values = list(inscription.values())
+                for value in inscription_values:
+                    entries.append(value['entry'])
+            
+            for field in wrong_fields:
+                wrong_entries.append(field['entry'])
+            
+            for entry in entries:
+                if entry in wrong_entries:
+                    entry.setStyleSheet("border-bottom: 2px solid red; border-radius: 0px;")
+                else:
+                    entry.setStyleSheet("")
+        
+        inscriptions_data= []
+        
+        wrong_fields = []
+        
+        inscripciones = []
+        inscripciones_repetidas = []
+        
+        for i in range(self.inscription_list.count()):
+            container = self.inscription_list.itemWidget(self.inscription_list.item(i))
+            cbr_entry = container.layout().itemAt(2).widget()
+            foja_entry = container.layout().itemAt(4).widget()
+            v_entry = container.layout().itemAt(6).widget()
+            numero_entry = container.layout().itemAt(8).widget()
+            anio_entry = container.layout().itemAt(10).widget()
+            
+            data = {
+                'cbr': {'entry':cbr_entry, 'value':cbr_entry.text()},
+                'foja': {'entry':foja_entry, 'value':foja_entry.text()},
+                'numero': {'entry':numero_entry, 'value':numero_entry.text()},
+                'anio': {'entry':anio_entry, 'value':anio_entry.text()}
+            }
+            inscriptions_data.append(data)
+        
+        for inscription in inscriptions_data:
+            obligatorios = list(data.keys())
+            for tipo_campo in obligatorios:
+                if not get_value(inscription, tipo_campo):
+                    add_wrong_field(inscription[tipo_campo])
+                    
+            
+            inscription_data = {}
+            inscription_keys = list(inscription.keys())
+            for key in inscription_keys:
+                inscription_data[key] = inscription[key]['value']
+                
+            if inscription_data in inscripciones:
+                inscripciones_repetidas.append(f"{inscription_data['cbr']} {inscription_data['anio']} {inscription_data['numero']} {inscription_data['foja']}")
+            inscripciones.append(inscription_data)
+                
+        add_red_borders()
+        
+        return wrong_fields, inscripciones_repetidas
+        
 
     def add_inscription(self, data=None):
         container = QFrame(self)
@@ -47,6 +121,8 @@ class TituloModal(QDialog):
         cbr_label = QLabel("CBR:")
         layout.addWidget(cbr_label, 2, 0)
         cbr = QLineEdit()
+        cbr.focusOutEvent = self.wrap_focus_out_event(cbr.focusOutEvent)
+        cbr.focusInEvent = self.wrap_focus_in_event(cbr, cbr.focusInEvent)
         cbr.setCompleter(self.completer)
         cbr.returnPressed.connect(self.select_completion)
         cbr.textChanged.connect(lambda: self.parent().to_uppercase(cbr))
@@ -57,6 +133,8 @@ class TituloModal(QDialog):
         foja_label = QLabel("Foja:")
         layout.addWidget(foja_label, 3, 0)
         foja = QLineEdit()
+        foja.focusOutEvent = self.wrap_focus_out_event(foja.focusOutEvent)
+        foja.focusInEvent = self.wrap_focus_in_event(foja, foja.focusInEvent)
         foja.setValidator(QIntValidator())
         if data:
             foja.setText(data['foja'])
@@ -72,6 +150,8 @@ class TituloModal(QDialog):
         numero_label = QLabel("Número:")
         layout.addWidget(numero_label, 5, 0)
         numero = QLineEdit()
+        numero.focusOutEvent = self.wrap_focus_out_event(numero.focusOutEvent)
+        numero.focusInEvent = self.wrap_focus_in_event(numero, numero.focusInEvent)
         numero.setValidator(QIntValidator())
         if data:
             numero.setText(data['numero'])
@@ -80,6 +160,8 @@ class TituloModal(QDialog):
         anio_label = QLabel("Año:")
         layout.addWidget(anio_label, 6, 0)
         anio = QLineEdit()
+        anio.focusOutEvent = self.wrap_focus_out_event(anio.focusOutEvent)
+        anio.focusInEvent = self.wrap_focus_in_event(anio, anio.focusInEvent)
         anio.setMaxLength(4)
         anio.setValidator(QIntValidator())
         if data:
@@ -94,6 +176,7 @@ class TituloModal(QDialog):
         list_item.setSizeHint(container.sizeHint())
         self.inscription_list.addItem(list_item)
         self.inscription_list.setItemWidget(list_item, container)
+        self.validate_fields()
     
     def select_completion(self):
         if self.completer.completionCount() > 0:
@@ -129,6 +212,19 @@ class TituloModal(QDialog):
     def save_inscriptions(self, silence=False):
         if not self.parent().current_formulario_id:
             self.parent().show_message("Error", "Guardar", "Seleccione un trabajo antes de guardar inscripciones.")
+            return
+        
+        wrong_fields, inscripciones_repetidas = self.validate_fields()
+        
+        if wrong_fields:
+             self.parent().show_message("Error", "Campos inválidos", "Error en uno o más campos ingresados")
+             return
+        elif inscripciones_repetidas:
+            message = "Inscripciones duplicadas:"
+            for inscripcion in inscripciones_repetidas:
+                message += f"\n - {inscripcion}"
+            
+            self.parent().show_message("Error", "Campos inválidos", message)
             return
 
         inscriptions_data = []
@@ -175,6 +271,17 @@ class TituloModal(QDialog):
         except requests.RequestException as e:
             print(f"Error al cargar inscripciones: {e}")
             self.parent().show_message("Error", "Error al cargar inscripciones", str(e))
+            
+    def wrap_focus_in_event(self, entry, original_event):
+        def wrapped_event(event):
+            entry.setStyleSheet("")
+            return original_event(event)
+        return wrapped_event
+    def wrap_focus_out_event(self, original_event):
+        def wrapped_event(event):
+            self.validate_fields()  # Ejecutar validación
+            return original_event(event)  # Llamar al evento original
+        return wrapped_event
 
     def closeEvent(self, event):
         self.save_inscriptions(silence=True)
