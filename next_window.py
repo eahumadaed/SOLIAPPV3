@@ -28,6 +28,7 @@ class NextWindow(QMainWindow):
         self.user_name = user_name
         self.inscripcion_layouts = {} 
         self.modal_abierto = False
+        self.rut_was_verified = False
         self.API_BASE_URL = 'https://api.loverman.net/dbase/dga2024/apiv3/api.php?action='
         self.api_base_url = self.API_BASE_URL
         self.setWindowTitle("SOLICITUD Formulario")
@@ -799,9 +800,6 @@ class NextWindow(QMainWindow):
             if json_key in formulario:
                 entry_value = formulario[json_key]
                 
-                if json_key == 'rut' and entry_value:
-                    entry_value = self.verificar_rut(entry_value)['rut']
-                
                 for label, entry in self.entries:
                     if label == form_label:
                         if isinstance(entry, QLineEdit):
@@ -906,7 +904,7 @@ class NextWindow(QMainWindow):
         print("Campos adicionales llenados para 'OTROS'")
                 
     def on_directory_select(self):
-        
+        self.rut_was_verified = False
         selected_items = []
 
         if self.sender() == self.dir_listwidget:
@@ -1293,6 +1291,11 @@ class NextWindow(QMainWindow):
 
     def validate_fields(self):
         form_data = self.get_form_data()
+        rut = form_data['RUT']['value']
+        if rut and not self.rut_was_verified:
+            self.verificar_rut(rut)
+            self.rut_was_verified = True
+        
         wrong_entries = []
         
         def add_wrong_entry(wrong_entry):
@@ -1863,7 +1866,7 @@ class NextWindow(QMainWindow):
 
 if __name__ == '__main__':#
     app = QApplication(sys.argv)
-    next_window = NextWindow(22,'Ed',1, False)
+    next_window = NextWindow(1,'Ed',1, False)
     next_window.showMaximized()
     next_window.show()
     sys.exit(app.exec_())

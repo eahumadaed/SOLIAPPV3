@@ -55,9 +55,6 @@ class ResolucionModal(QDialog):
                 else:
                     entry.setStyleSheet("")
         
-        if self.autocompletando:
-            return
-        
         resolutions_data= []
         
         wrong_fields = []
@@ -120,6 +117,8 @@ class ResolucionModal(QDialog):
         n_resolucion_label = QLabel("Número:")
         layout.addWidget(n_resolucion_label, 1, 0)
         n_resolucion = QLineEdit(self)
+        n_resolucion.focusOutEvent = self.wrap_focus_out_event(n_resolucion.focusOutEvent)
+        n_resolucion.focusInEvent = self.wrap_focus_in_event(n_resolucion, n_resolucion.focusInEvent)
         if data:
             n_resolucion.setText(data['n_resolucion'])
         layout.addWidget(n_resolucion, 1, 1)
@@ -127,11 +126,13 @@ class ResolucionModal(QDialog):
         f_resolucion_label = QLabel("Fecha:")
         layout.addWidget(f_resolucion_label, 2, 0)
         f_resolucion = QLineEdit(self)
+        f_resolucion.focusOutEvent = self.wrap_focus_out_event(f_resolucion.focusOutEvent)
+        f_resolucion.focusInEvent = self.wrap_focus_in_event(f_resolucion, f_resolucion.focusInEvent)
         f_resolucion.setPlaceholderText("dd/mm/yyyy")
         if data:
             f_resolucion.setText(data['f_resolucion'])
         else:
-            f_resolucion.setText("--/--/----")
+            f_resolucion.setPlaceholderText("--/--/----")
         
         f_resolucion.textChanged.connect(self.auto_format_date)
         layout.addWidget(f_resolucion, 2, 1)
@@ -144,6 +145,7 @@ class ResolucionModal(QDialog):
         list_item.setSizeHint(container.sizeHint())
         self.resolucion_list.addItem(list_item)
         self.resolucion_list.setItemWidget(list_item, container)
+        self.validate_fields()
 
     def auto_format_date(self, text):
         clean_text = text.replace("/", "")
@@ -208,6 +210,20 @@ class ResolucionModal(QDialog):
         if not self.parent().current_formulario_id:
             self.parent().show_message("Error", "Guardar", "Seleccione un trabajo antes de guardar resoluciones.")
             return
+        
+        wrong_fields, resoluciones_repetidas = self.validate_fields()
+        
+        if wrong_fields:
+             self.parent().show_message("Error", "Campos inválidos", "Error en uno o más campos ingresados")
+             return
+        elif resoluciones_repetidas:
+            message = "Documentos duplicados:"
+            for inscripcion in resoluciones_repetidas:
+                message += f"\n - {inscripcion}"
+            
+            self.parent().show_message("Error", "Campos inválidos", message)
+            return
+        
 
         resoluciones_data = []
         for i in range(self.resolucion_list.count()):
@@ -250,6 +266,17 @@ class ResolucionModal(QDialog):
         except requests.RequestException as e:
             print(f"Error al cargar resoluciones: {e}")
             self.parent().show_message("Error", "Error al cargar resoluciones", str(e))
+    
+    def wrap_focus_in_event(self, entry, original_event):
+        def wrapped_event(event):
+            entry.setStyleSheet("")
+            return original_event(event)
+        return wrapped_event
+    def wrap_focus_out_event(self, original_event):
+        def wrapped_event(event):
+            self.validate_fields()  # Ejecutar validación
+            return original_event(event)  # Llamar al evento original
+        return wrapped_event
 
     def closeEvent(self, event):
         self.save_resoluciones(silence=True)
