@@ -28,7 +28,6 @@ class NextWindow(QMainWindow):
         self.user_name = user_name
         self.inscripcion_layouts = {} 
         self.modal_abierto = False
-        self.rut_was_verified = False
         self.API_BASE_URL = 'https://api.loverman.net/dbase/dga2024/apiv3/api.php?action='
         self.api_base_url = self.API_BASE_URL
         self.setWindowTitle("SOLICITUD Formulario")
@@ -904,7 +903,6 @@ class NextWindow(QMainWindow):
         print("Campos adicionales llenados para 'OTROS'")
                 
     def on_directory_select(self):
-        self.rut_was_verified = False
         selected_items = []
 
         if self.sender() == self.dir_listwidget:
@@ -946,6 +944,9 @@ class NextWindow(QMainWindow):
             self.toggle_extra()
             self.validate_fields()
             self.clear_pdf_viewer()
+            rut = self.rut_entry.text().strip()
+            if rut:
+                self.verificar_rut(rut)
             
 
     def load_pdfs(self, trabajo_id):
@@ -1291,10 +1292,6 @@ class NextWindow(QMainWindow):
 
     def validate_fields(self):
         form_data = self.get_form_data()
-        rut = form_data['RUT']['value']
-        if rut and not self.rut_was_verified:
-            self.verificar_rut(rut)
-            self.rut_was_verified = True
         
         wrong_entries = []
         
