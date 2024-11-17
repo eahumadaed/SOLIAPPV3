@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QCompleter, QFrame, QHBoxLayout, QListWidget, QPushButton, QLabel, QScrollArea, QSpacerItem, QSizePolicy, QTextEdit, QDateEdit, QGridLayout, QSplitter, QComboBox, QLineEdit, QCheckBox, QMessageBox, QListWidgetItem,QInputDialog
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl, Qt, QDate, QEvent,QRegExp
+from PyQt5.QtCore import QUrl, Qt, QDate, QEvent,QRegExp, QStringListModel
 from PyQt5.QtGui import QIntValidator,QRegExpValidator, QColor
-import requests,json,sys,re
+import requests,json,sys,re, os
 from comunas import Comunas_list
 from InscriptionModal import InscriptionModal
 from ResolucionModal import ResolucionModal
@@ -12,10 +12,14 @@ from DetallesModal import DetallesModal
 from datetime import datetime
 from HistoryModal import HistoryModal
 import time
+from custom_browser import CustomWebEngineView
+
 
 class NextWindow(QMainWindow):
-    def __init__(self, user_id, user_name,Cantidad):
+    def __init__(self, user_id, user_name,Cantidad, smallScreen = False):
         super().__init__()
+        self.viewer_url = "https://www.dataresearch.cl/repositorio_dps_2024/viewerv2.html"
+        self.smallScreen = smallScreen
         self.user_id = user_id
         self.current_trabajo_id = None
         self.current_trabajo_info = None
@@ -40,13 +44,28 @@ class NextWindow(QMainWindow):
         self.form_widget = QWidget()
         self.form_layout = QVBoxLayout(self.form_widget)
         
+        self.nombres_list = []
+        self.apellidos_list = []
+        
         self.set_title(Cantidad)
         self.create_left_frame()
         self.create_middle_frame()
         self.create_right_frame()
+
+        self.splitter = QSplitter(Qt.Horizontal)
+        
+        self.splitter.addWidget(self.left_frame)
+        self.splitter.addWidget(self.middle_frame)
+        self.splitter.addWidget(self.right_frame)
+        if smallScreen:
+            self.splitter.setSizes([240, 350, self.width()-590])
+        else:
+            self.splitter.setSizes([300, 550, self.width()-850])
+        
+        self.layout.addWidget(self.splitter)
         
     def set_title(self,Cantidad):
-        self.setWindowTitle(f"DPs Formulario ({self.user_name}) - {Cantidad} Terminados")
+        self.setWindowTitle(f"SOL + DPs Formulario ({self.user_name}) - {Cantidad} Terminados")
         
         
     def buscar_rut_api(self, rut):
@@ -63,7 +82,7 @@ class NextWindow(QMainWindow):
         self.left_frame = QFrame(self)
         self.left_frame.setFrameShape(QFrame.StyledPanel)
         self.left_frame.setMaximumWidth(300)  # Establecer el ancho máximo a 300px
-        self.layout.addWidget(self.left_frame)
+        #self.layout.addWidget(self.left_frame)
 
         self.left_layout = QVBoxLayout(self.left_frame)
         
@@ -132,9 +151,9 @@ class NextWindow(QMainWindow):
     def create_middle_frame(self):
         self.middle_frame = QFrame(self)
         self.middle_frame.setFrameShape(QFrame.StyledPanel)
-        self.middle_frame.setMaximumWidth(800)
-        self.middle_frame.setMinimumWidth(500)
-        self.layout.addWidget(self.middle_frame)
+        self.middle_frame.setMaximumWidth(700)
+        self.middle_frame.setMinimumWidth(350 if self.smallScreen else 550)
+        #self.layout.addWidget(self.middle_frame)
         self.middle_layout = QVBoxLayout(self.middle_frame)
         self.middle_layout.setSpacing(5)
         self.middle_section_title_layout = QHBoxLayout()
@@ -157,25 +176,65 @@ class NextWindow(QMainWindow):
         self.add_section_title("DATOS SOLICITUD")
         self.principal_layout = QGridLayout()
         self.form_layout.addLayout(self.principal_layout)
-
-        SOLICITUD_entry = self.add_input_field("SOLICITUD", "select", ['--','B.1', 'B.2','B.3','B.4','B.5','B.6','B.7','B.8','B.9', 'NO INDICA', 'SIN SOLICITUD', 'CORTADA'],parent_layout=self.principal_layout,row=0, col=0)
-        self.add_input_field("F_RECEPCION", "date", parent_layout=self.principal_layout, row=0, col=1)
+        
+        if self.smallScreen:
+            SOLICITUD_entry = self.add_input_field("SOLICITUD", "select", ['--','B.1', 'B.2','B.3','B.4','B.5','B.6','B.7','B.8','B.9', 'NO INDICA', 'SIN SOLICITUD', 'CORTADA'])
+            self.add_input_field("F_RECEPCION", "date")
+        else:
+            SOLICITUD_entry = self.add_input_field("SOLICITUD", "select", ['--','B.1', 'B.2','B.3','B.4','B.5','B.6','B.7','B.8','B.9', 'NO INDICA', 'SIN SOLICITUD', 'CORTADA'],parent_layout=self.principal_layout,row=0, col=0)
+            self.add_input_field("F_RECEPCION", "date", parent_layout=self.principal_layout, row=0, col=1)
 
         SOLICITUD_entry.setFixedWidth(130)
         self.add_section_title("SOLICITANTE")
+        self.recomendar_layout = QHBoxLayout()
+        self.recomendar_lbl = QLabel("Sugerir")
+        self.recomendar_layout.addWidget(self.recomendar_lbl)
+        self.recomendar_checkbox = QCheckBox()
+        self.recomendar_checkbox.setChecked(True)
+        self.recomendar_layout.addWidget(self.recomendar_checkbox)
+        
+        self.limpiar_recomendaciones_button = QPushButton("Borrar sugerencias")
+        self.limpiar_recomendaciones_button.clicked.connect(self.limpiar_recomendaciones)
+        self.recomendar_layout.addWidget(self.limpiar_recomendaciones_button)
+        
+        self.form_layout.addLayout(self.recomendar_layout)
+        
+        self.recomendar_layout.setAlignment(Qt.AlignRight)
+        self.recomendar_layout.setContentsMargins(0, 0, 0, 0)
+        self.recomendar_layout.setSpacing(5)
+        self.form_layout.addLayout(self.recomendar_layout)
+        
         self.user_layout = QGridLayout()
         self.form_layout.addLayout(self.user_layout)
+        
+        self.nombres_completer = QCompleter(self.nombres_list)
+        self.nombres_completer.setCompletionMode(QCompleter.InlineCompletion)
+        self.nombres_completer.setCaseSensitivity(Qt.CaseInsensitive)
+
+        self.apellido_completer = QCompleter(self.apellidos_list)
+        self.apellido_completer.setCompletionMode(QCompleter.InlineCompletion)
+        self.apellido_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        
         self.add_input_field("RUT", "text", parent_layout=self.user_layout, row=0, col=0)
         self.add_button_rut = QPushButton("Buscar", self)
         self.add_button_rut.clicked.connect(self.handle_rut_search)
         self.user_layout.addWidget(self.add_button_rut, 0, 1)
 
-        self.add_input_field("NAC", "select", ['--','CHILENA','EXTRANJERA'], parent_layout=self.user_layout, row=1, col=0)
-        self.add_input_field("TIPO", "select", ['--','NATURAL','JURIDICA'], parent_layout=self.user_layout, row=1, col=1)
-        self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=2, col=0)
-        self.add_input_field("NOMBRE", "text", parent_layout=self.user_layout, row=2, col=1)
-        self.add_input_field("PATERNO", "text", parent_layout=self.user_layout, row=3, col=0)
-        self.add_input_field("MATERNO", "text", parent_layout=self.user_layout, row=3, col=1)
+        if self.smallScreen:
+            self.add_input_field("NAC", "select", ['--','CHILENA','EXTRANJERA'], parent_layout=self.user_layout, row=1, col=0)
+            self.add_input_field("TIPO", "select", ['--','NATURAL','JURIDICA'], parent_layout=self.user_layout, row=1, col=1)
+            self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=2, col=0)
+            self.add_input_field("NOMBRE", "text")
+            self.add_input_field("PATERNO", "text")
+            self.add_input_field("MATERNO", "text")
+
+        else:
+            self.add_input_field("NAC", "select", ['--','CHILENA','EXTRANJERA'], parent_layout=self.user_layout, row=1, col=0)
+            self.add_input_field("TIPO", "select", ['--','NATURAL','JURIDICA'], parent_layout=self.user_layout, row=1, col=1)
+            self.add_input_field("GENERO", "select", ['--','F','M'], parent_layout=self.user_layout, row=2, col=0)
+            self.add_input_field("NOMBRE", "text", parent_layout=self.user_layout, row=2, col=1)
+            self.add_input_field("PATERNO", "text", parent_layout=self.user_layout, row=3, col=0)
+            self.add_input_field("MATERNO", "text", parent_layout=self.user_layout, row=3, col=1)
 
         self.add_section_title("RESOLUCION/SENTENCIA/EP")
         self.res_layout = QGridLayout()
@@ -198,15 +257,27 @@ class NextWindow(QMainWindow):
         self.add_section_title("INSCRIPCIONES")
         self.inscriptions_layout = QGridLayout()
         self.form_layout.addLayout(self.inscriptions_layout)
-        self.add_input_field("F_INSCRIPCION", "date", parent_layout=self.inscriptions_layout, row=0, col=0)
-        self.auto_complete_button = QPushButton("Autocompletar")
-        self.auto_complete_button.clicked.connect(self.auto_complete_inscription)
-        self.inscriptions_layout.addWidget(self.auto_complete_button, 0,3)
-        self.add_input_field("CBR", "text", parent_layout=self.inscriptions_layout, row=1, col=0, size=0)
-        self.add_input_field("FOJA", "number", parent_layout=self.inscriptions_layout, row=2, col=0, size=0)
-        self.add_input_field("V", "checkbox", parent_layout=self.inscriptions_layout, row=2, col=1, size=0)
-        self.add_input_field("N°", "number", parent_layout=self.inscriptions_layout, row=2, col=2, size=0)
-        self.add_input_field("AÑO", "number", parent_layout=self.inscriptions_layout, row=2, col=3, size=0)
+        if self.smallScreen:
+            self.add_input_field("F_INSCRIPCION", "date")
+            self.auto_complete_button = QPushButton("Autocompletar")
+            self.auto_complete_button.clicked.connect(self.auto_complete_inscription)
+            self.inscriptions_layout.addWidget(self.auto_complete_button)
+            self.add_input_field("CBR", "text")
+            self.add_input_field("FOJA", "number")
+            self.add_input_field("V", "checkbox")
+            self.add_input_field("N°", "number")
+            self.add_input_field("AÑO", "number")
+        
+        else:
+            self.add_input_field("F_INSCRIPCION", "date", parent_layout=self.inscriptions_layout, row=0, col=0)
+            self.auto_complete_button = QPushButton("Autocompletar")
+            self.auto_complete_button.clicked.connect(self.auto_complete_inscription)
+            self.inscriptions_layout.addWidget(self.auto_complete_button, 0,3)
+            self.add_input_field("CBR", "text", parent_layout=self.inscriptions_layout, row=1, col=0, size=0)
+            self.add_input_field("FOJA", "number", parent_layout=self.inscriptions_layout, row=2, col=0, size=0)
+            self.add_input_field("V", "checkbox", parent_layout=self.inscriptions_layout, row=2, col=1, size=0)
+            self.add_input_field("N°", "number", parent_layout=self.inscriptions_layout, row=2, col=2, size=0)
+            self.add_input_field("AÑO", "number", parent_layout=self.inscriptions_layout, row=2, col=3, size=0)
         self.add_inscription_button = QPushButton("Agregar Inscripción", self)
         self.add_inscription_button.clicked.connect(self.open_inscription_modal)
         self.form_layout.addWidget(self.add_inscription_button)
@@ -218,7 +289,7 @@ class NextWindow(QMainWindow):
         self.add_section_title("TIPO DE DOCUMENTO")
         self.tipo_and_right_layout  = QComboBox()
         self.tipo_and_right_layout.wheelEvent = lambda event: event.ignore()
-        opciones = ["--","SENTENCIA", "RESOLUCION DGA", "COMUNIDAD DE AGUAS", "COMPRAVENTA", "SIN DOC. AGUAS", "OTROS",'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD']
+        opciones = ["--","SENTENCIA", "RESOLUCION DGA", "COMUNIDAD DE AGUAS", "COMPRAVENTA", "SIN DOC. AGUAS", "HERENCIA",'ARRENDAMIENTO', 'USUFRUCTO', 'NUDA PROPIEDAD', "OTROS"]
         self.tipo_and_right_layout.addItems(opciones)
         self.tipo_and_right_layout.currentIndexChanged.connect(lambda: self.toggle_extra())
         self.tipo_and_right_layout.currentIndexChanged.connect(lambda: self.validate_fields())
@@ -311,15 +382,72 @@ class NextWindow(QMainWindow):
         self.submit_button = QPushButton("Registrar", self)
         self.submit_button.clicked.connect(self.submit_form)
         self.middle_layout.addWidget(self.submit_button)
+    
+    def limpiar_recomendaciones(self):
+        self.nombres_list = []
+        self.apellidos_list = []
+        model = QStringListModel([])
+        self.nombres_completer.setModel(model)
+        self.apellido_completer.setModel(model)
+    
+    def on_viewer_changed(self):
+        option = self.viewer_combo.currentText()
+        
+        if option == "Visor nuevo":
+            self.browser.ignoreZoom = True
+            viewer_url = "https://www.dataresearch.cl/repositorio_dps_2024/viewerv2.html"
+        elif option == "Visor antiguo":
+            self.browser.ignoreZoom = False
+            viewer_url = "https://www.dataresearch.cl/repositorio_dps_2024/viewerv1.html"
+        else:
+            viewer_url = self.viewer_url
+            
+        print(viewer_url)
+        
+        if self.viewer_url!=viewer_url:
+            self.viewer_url = viewer_url
+            selected_items = self.pdf_listbox.selectedItems()
+            if selected_items:
+                selected_item = selected_items[0]
+                index = self.pdf_listbox.row(selected_item)
+                pdf_url = self.pdf_paths[index]
+                print(f"PDF seleccionado: {pdf_url}")
+                self.load_pdf(pdf_url)
+        
+    def remove_highlights(self):
+        self.browser.selection_widget.rects = []
+        self.browser.selection_widget.update()
         
     def get_cbr_files(self, files):
         cbrs = []
         for f in files:
-            f = f.replace('.pdf', '').replace("  ", " ").strip()
+            f = f.split("(")[0].replace('.pdf', '').replace("  ", " ").strip()
             splitted_name = f.split()
             
-            if 4 <= len(splitted_name) <= 5 and splitted_name[0].lower() != "res":
-                cbr, anio, numero, *foja_parts = splitted_name
+            formatted_parts = [] # unir nombre del cbr ej SAN FELIPE
+            
+            if splitted_name[0].lower() in ['res', 'sent', 'sentencia', 'ep', 'reg']:
+                continue
+            
+            cbr_name_ok = False
+            for part in splitted_name:
+                if part.isdigit():  # Si la parte es un número
+                    cbr_name_ok = True  # Indica que se encontró un número
+                    formatted_parts.append(part)  # Añade el número por separado
+                elif not part.isdigit():  # Si la parte no es un número
+                    if not cbr_name_ok:  # Si no hemos encontrado un número aún
+                        if not formatted_parts:  # Si la lista está vacía
+                            formatted_parts.append(part)  # Añade la primera palabra no numérica al primer elemento
+                        else:
+                            formatted_parts[0] = f"{formatted_parts[0]} {part}"  # Une las palabras no numéricas en el primer elemento
+                    else:
+                        formatted_parts.append(part)
+            
+            print(formatted_parts)
+            
+            
+            if 4 <= len(formatted_parts) <= 5:
+                cbr, anio, numero, *foja_parts = formatted_parts
                 cbr = cbr.upper()
                 foja = "".join(foja_parts)
                 isVta = False
@@ -362,11 +490,11 @@ class NextWindow(QMainWindow):
                     largest_year = anio
                     largest_number = numero
                     lastest_cbr_index = index
-                elif anio == largest_year and numero and numero>largest_number:
+                elif anio == largest_year and numero and int(numero)>int(largest_number):
                     largest_year = anio
                     largest_number = numero
                     lastest_cbr_index = index
-        if lastest_cbr_index:
+        if lastest_cbr_index is not None:
             return cbrs[lastest_cbr_index]
         return None
             
@@ -379,7 +507,8 @@ class NextWindow(QMainWindow):
         cbrs = self.get_cbr_files(cleaned_pdf_names)
         
         latest_inscription = self.get_latest_cbr(cbrs)
-        
+        if not latest_inscription:
+            self.show_message("Info","Inscripciones no encontradas", "¡No se encontraron inscripciones!\n\nVerificar que los archivos estén nombrados correctamente.")
         empty_f_inscripcion = False
         f_inscription_entry = None
 
@@ -466,6 +595,15 @@ class NextWindow(QMainWindow):
             elif tipo in self.tipos_with_extra_form:
                 obs_entry.addItems(['--', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
                 
+            elif tipo == "HERENCIA":
+                obs_entry.addItems(['--', 'SIN REVISAR PERFECCIONAMIENTO', 'PERFECTO', 'IMPERFECTO', 'PERFECCIONADO AL MARGEN', 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+
+            elif tipo=="COMUNIDAD DE AGUAS":
+                obs_entry.addItems(["--", "SIN REVISAR COM. AGUAS", 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+            
+            elif tipo == "SIN DOC. AGUAS":
+                obs_entry.addItems(["--", "CERT. DOMINIO VIGENTE", "SIN DATOS DE INSCRIPCION", 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
+            
             elif tipo != "--":
                 obs_entry.addItems(["--", 'SIN RUT', 'NO SE LEE', 'NO CARGA'])
             else:
@@ -487,8 +625,147 @@ class NextWindow(QMainWindow):
         if tipo != "--":
             self.extra_form_obs_widget.show()
             sugerencia_label.show()
-
+    
+    def update_nombre_completer(self,entry):
+        if not self.recomendar_checkbox.isChecked():
+            model = QStringListModel([])
+            self.apellido_completer.setModel(model)
+            return
+        items = self.nombres_list
+        nombres = {}
+        fmt = '%Y-%m-%d %H:%M:%S'
+        for item in items:
+            nombre = item['nombre']
+            timestamp = item['timestamp']
+            trabajo_id = item['trabajo_id']
+            if isinstance(timestamp, str):
+                item_timestamp = datetime.strptime(timestamp, fmt)
+            else:
+                item_timestamp = timestamp
+            if nombre in nombres:
+                current_data = nombres[nombre]
+                current_timestamp = current_data['lastTimestamp']
+                
+                if isinstance(current_timestamp, str):
+                    current_timestamp = datetime.strptime(current_timestamp, fmt)
+                nombres[nombre].update({
+                    "fromCurrentTrabajoId": trabajo_id == self.current_trabajo_id,
+                    "frecuencia": current_data['frecuencia'] + 1,
+                    "lastTimestamp": max(current_timestamp, item_timestamp)
+                })
+            else:
+                nombres[nombre] = {
+                    "fromCurrentTrabajoId": trabajo_id == self.current_trabajo_id,
+                    "frecuencia": 1,
+                    "lastTimestamp": item_timestamp 
+                }
+        sorted_nombres = sorted(
+            nombres.items(),
+            key=lambda item: (
+                not item[1]["fromCurrentTrabajoId"],
+                -item[1]["frecuencia"],
+                -item[1]["lastTimestamp"].timestamp()
+            )
+        )
+        sorted_nombres = [nombre for nombre, _ in sorted_nombres if nombre.upper() != entry.text().upper()]
+        model = QStringListModel(sorted_nombres)
+        self.nombres_completer.setModel(model)
+            
+    def add_nombre_item(self, entry):
+        nombre = entry.text().strip().upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+        if nombre:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            itemWasFound = False
+            for item in self.nombres_list:
+                if item['entry'] == entry and item['trabajo_id']==self.current_trabajo_id:
+                    item.update({"nombre": nombre, "trabajo_id": self.current_trabajo_id, "timestamp": timestamp})
+                    itemWasFound = True
+            if not itemWasFound:
+                self.nombres_list.append({"nombre": nombre, "entry": entry, "trabajo_id": self.current_trabajo_id, "timestamp": timestamp})
+        else:
+            self.delete_nombre_item(entry)
+        self.update_nombre_completer(entry)
+    
+    def delete_nombre_item(self, entry):
+        for i, item in enumerate(self.nombres_list):
+            if item['entry'] == entry and item['trabajo_id']==self.current_trabajo_id:
+                del self.nombres_list[i]
+                return
+    
+    def update_apellido_completer(self, entry):
+        if not self.recomendar_checkbox.isChecked():
+            model = QStringListModel([])
+            self.apellido_completer.setModel(model)
+            return
         
+        items = self.apellidos_list
+        apellidos = {}
+
+        fmt = '%Y-%m-%d %H:%M:%S'
+
+        for item in items:
+            apellido = item['apellido']
+            timestamp = item['timestamp']
+            trabajo_id = item['trabajo_id']
+
+            if isinstance(timestamp, str):
+                item_timestamp = datetime.strptime(timestamp, fmt)
+            else:
+                item_timestamp = timestamp
+
+            if apellido in apellidos:
+                current_data = apellidos[apellido]
+                current_timestamp = current_data['lastTimestamp']
+
+                if isinstance(current_timestamp, str):
+                    current_timestamp = datetime.strptime(current_timestamp, fmt)
+
+                apellidos[apellido].update({
+                    "fromCurrentTrabajoId": trabajo_id == self.current_trabajo_id,
+                    "frecuencia": current_data['frecuencia'] + 1,
+                    "lastTimestamp": max(current_timestamp, item_timestamp)
+                })
+            else:
+                apellidos[apellido] = {
+                    "fromCurrentTrabajoId": trabajo_id == self.current_trabajo_id,
+                    "frecuencia": 1,
+                    "lastTimestamp": item_timestamp 
+                }
+
+        sorted_apellidos = sorted(
+            apellidos.items(),
+            key=lambda item: (
+                not item[1]["fromCurrentTrabajoId"],
+                -item[1]["frecuencia"],
+                -item[1]["lastTimestamp"].timestamp()
+            )
+        )
+
+        sorted_apellidos = [apellido for apellido, _ in sorted_apellidos if apellido.upper()!=entry.text().upper()]
+        print(sorted_apellidos)
+        model = QStringListModel(sorted_apellidos)
+        self.apellido_completer.setModel(model)
+    
+    def add_apellido_item(self, entry):
+        apellido = entry.text().strip().upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+        if apellido:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            itemWasFound = False
+            for item in self.apellidos_list:
+                if item['entry'] == entry and item['trabajo_id']==self.current_trabajo_id:
+                    item.update({"apellido": apellido, "trabajo_id": self.current_trabajo_id, "timestamp": timestamp})
+                    itemWasFound = True
+            if not itemWasFound:
+                self.apellidos_list.append({"apellido": apellido, "entry": entry, "trabajo_id": self.current_trabajo_id, "timestamp": timestamp})
+        else:
+            self.delete_apellido_item(entry)
+        self.update_apellido_completer(entry)
+
+    def delete_apellido_item(self, entry):
+        for i, item in enumerate(self.apellidos_list):
+            if item['entry'] == entry and item['trabajo_id']==self.current_trabajo_id:
+                del self.apellidos_list[i]
+                return
 
     def fill_form(self, formulario):
         self.clear_form()
@@ -696,8 +973,10 @@ class NextWindow(QMainWindow):
             self.load_pdf(pdf_url)
 
     def load_pdf(self, encoded_pdf_path):
+        self.browser.reset_zoom()
         try:
-            pdf_url = f"https://loverman.net/dbase/dga2024/viewer.html?file={encoded_pdf_path}#page=1"
+            self.remove_highlights()
+            pdf_url = f"{self.viewer_url}?file={encoded_pdf_path}#page=1"
             self.browser.load(QUrl(pdf_url))
             print(f"Mostrando PDF desde URL: {pdf_url}")
         except Exception as e:
@@ -763,22 +1042,40 @@ class NextWindow(QMainWindow):
     def create_right_frame(self):
         self.right_frame = QFrame(self)
         self.right_frame.setFrameShape(QFrame.StyledPanel)
-        self.layout.addWidget(self.right_frame, stretch=1)
+        #self.layout.addWidget(self.right_frame, stretch=1)
+
         self.right_layout = QVBoxLayout(self.right_frame)
-        self.top_frame = QFrame(self)
-        self.right_layout.addWidget(self.top_frame)
-        self.top_layout = QHBoxLayout(self.top_frame)
-        self.splitter = QSplitter(Qt.Vertical)
-        self.right_layout.addWidget(self.splitter, stretch=1)
-        self.browser = QWebEngineView()
-        self.splitter.addWidget(self.browser)
-        self.splitter.setSizes([800, 400])
+    
+        self.right_layout.setContentsMargins(0, 0, 0, 0)
+        self.right_layout.setSpacing(0)
+        
+        self.options_layout = QHBoxLayout()
+        self.options_layout.setContentsMargins(5, 5, 5, 5)
+        self.remove_highlights_button = QPushButton("Quitar marcas")
+        self.remove_highlights_button.clicked.connect(self.remove_highlights)
+        self.remove_highlights_button.adjustSize()
+        self.remove_highlights_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.options_layout.addWidget(self.remove_highlights_button, alignment=Qt.AlignLeft)
+        
+        self.viewer_combo = QComboBox()
+        self.viewer_combo.addItems(["Visor nuevo", "Visor antiguo"])
+        self.viewer_combo.currentIndexChanged.connect(self.on_viewer_changed)
+        self.viewer_combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.options_layout.addWidget(self.viewer_combo, alignment=Qt.AlignRight)
+        
+        self.right_layout.addLayout(self.options_layout)
+        
+        self.browser = CustomWebEngineView()
+        self.right_layout.addWidget(self.browser)
 
     def add_input_field(self, label_text, field_type="text", options=None, parent_layout=None, row=0, col=0, size=None, col_span=1):
         if parent_layout is None:
             parent_layout = self.form_layout
         container = QFrame(self.form_widget)
-        container_layout = QHBoxLayout(container)
+        if self.smallScreen and (label_text=="COMENTARIO" or label_text=="PTOS CONOCIDOS DE CAPTACION"):
+            container_layout = QVBoxLayout(container)
+        else:
+            container_layout = QHBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(3)
 
@@ -795,9 +1092,20 @@ class NextWindow(QMainWindow):
                 entry.setFixedWidth(size)
             if label_text == "RUT":
                 entry.focusOutEvent = lambda event: self.on_rut_focus_out(entry, event)
-            if label_text == "CBR":
+                self.rut_entry = entry
+            elif label_text == "CBR":
                 entry.setCompleter(self.completer)
                 entry.returnPressed.connect(self.select_completion)
+                self.cbr_entry = entry
+            elif label_text=="NOMBRE":
+                entry.textChanged.connect(lambda: self.add_nombre_item(entry))
+                entry.setCompleter(self.nombres_completer)
+                entry.returnPressed.connect(lambda: self.select_completion(label_text))
+            elif label_text=="PATERNO" or label_text=="MATERNO":
+                entry.textChanged.connect(lambda: self.add_apellido_item(entry))
+                entry.setCompleter(self.apellido_completer)
+                entry.returnPressed.connect(lambda: self.select_completion(label_text))
+                
             entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
                 
         elif field_type == "number":
@@ -811,6 +1119,8 @@ class NextWindow(QMainWindow):
         elif field_type == "select":
             entry = QComboBox()
             entry.wheelEvent = lambda event: event.ignore()
+            if label_text == "OBS":
+                self.obs_entry = entry
             if options:
                 entry.addItems(options)
             entry.currentIndexChanged.connect(lambda: self.validate_fields())
@@ -839,6 +1149,9 @@ class NextWindow(QMainWindow):
             raise ValueError(f"Tipo de campo desconocido: {field_type}")
         entry.focusInEvent = self.wrap_focus_in_event(entry, entry.focusInEvent)
 
+        if self.smallScreen:
+            entry.setMinimumWidth(50)
+
         container_layout.addWidget(entry)
         self.entries.append((label_text, entry))
 
@@ -861,9 +1174,7 @@ class NextWindow(QMainWindow):
             return original_event(event)  # Llamar al evento original
         return wrapped_event
     
-    def select_completion(self):
-        if self.completer.completionCount() > 0:
-            self.sender().setText(self.completer.currentCompletion())
+    def select_completion(self, entry_lbl):
         self.sender().focusNextPrevChild(True)
     
     def adjust_height(self,entry):
@@ -1009,52 +1320,93 @@ class NextWindow(QMainWindow):
         tipo_doc = form_data['tipo_doc']
                     
         if not get_value('SOLICITUD'): add_wrong_entry('SOLICITUD')
-        if not get_value('F_RECEPCION'): add_wrong_entry('F_RECEPCION')
+        if not get_value('F_RECEPCION') and get_value('SOLICITUD')!='SIN SOLICITUD': add_wrong_entry('F_RECEPCION')
         if not tipo_doc or tipo_doc=="--": add_wrong_entry('tipo_doc')
+        if not get_value('OBS'): add_wrong_entry('OBS')
         
-        if tipo_doc != "SIN DOC. AGUAS" and tipo_doc != "SENTENCIA" and  tipo_doc != "RESOLUCION DGA":
-            if not get_value('CBR'): add_wrong_entry('CBR')
-            if not get_value('FOJA'): add_wrong_entry('FOJA')
-            if not get_value('N°'): add_wrong_entry('N°')
-            if not get_value('AÑO'): add_wrong_entry('AÑO')
-
-        if (tipo_doc in self.tipos_with_extra_form or tipo_doc=="SENTENCIA" or tipo_doc=="RESOLUCION DGA" or tipo_doc=="COMPRAVENTA") and tipo_doc!="--":
-            obs_value = get_value('OBS')
-            if not obs_value: 
-                add_wrong_entry('OBS')
-            if tipo_doc in self.tipos_with_extra_form:
-                if( 
-                obs_value!='PERFECTO' and
-                obs_value!='PERFECCIONADO AL MARGEN' and
-                obs_value!='SIN RUT' and
-                obs_value!='NO SE LEE' and 
-                obs_value!="NO CARGA" and not
-                get_value('PTOS CONOCIDOS DE CAPTACION')
-                ):
-                    add_wrong_entry('PTOS CONOCIDOS DE CAPTACION')
+        tipo_doc_restriccion = {
+            'RESOLUCION DGA': 1,
+            'SENTENCIA': 1,
+            'COMUNIDAD DE AGUAS': 2,
+            'COMPRAVENTA': 2,
+            'SIN DOC. AGUAS': 1,
+            'HERENCIA': 2,
+            'OTROS': 3,
+            'ARRENDAMIENTO': 3,
+            'USUFRUCTO': 3,
+            'NUDA PROPIEDAD': 3,
+        }
+        
+        clases_restricciones = {
+            1: [{
+                    'tipo': 'USUARIO',
+                    'excepciones':['obs:SIN RUT']
+                }
+            ],
+            2: [{
+                    'tipo': 'USUARIO',
+                    'excepciones':['obs:SIN RUT']
+                },
+                {
+                    'tipo': 'INSCRIPCION',
+                    'excepciones':[]
+                }
+            ],
+            3: [{
+                    'tipo': 'USUARIO',
+                    'excepciones':['obs:SIN RUT']
+                },
+                {
+                    'tipo': 'INSCRIPCION',
+                    'excepciones':[]
+                },
+                {
+                    'tipo': 'PTOS CONOCIDOS DE CAPTACION',
+                    'excepciones':['obs:PERFECTO-PERFECCIONADO AL MARGEN-SIN RUT-NO SE LEE-NO CARGA']
+                }
+            ]
+        }
+        
+        if tipo_doc and tipo_doc!='--':
+        
+            clase_restriccion = tipo_doc_restriccion[tipo_doc]
+            restricciones =  clases_restricciones[clase_restriccion]
             
-        if get_value('OBS')!="SIN RUT" and not ((tipo_doc=="SENTENCIA" or tipo_doc=="RESOLUCION DGA") and get_value('OBS')=="SIN RUT"):
-            tipo_value = get_value('TIPO')
-            if not tipo_value: add_wrong_entry('TIPO')
-            if not get_value('RUT'): add_wrong_entry('RUT')
-            if not get_value('NOMBRE'): add_wrong_entry('NOMBRE')
-            if tipo_value == 'NATURAL':
-                if not get_value('NAC'): add_wrong_entry('NAC')
-                if not get_value('GENERO'): add_wrong_entry('GENERO')
-                if not get_value('PATERNO'): add_wrong_entry('PATERNO')
-            if tipo_value == 'JURIDICA':
-                if get_value('NAC'): add_wrong_entry('NAC')
-                if get_value('GENERO'): add_wrong_entry('GENERO')
-                if get_value('PATERNO'): add_wrong_entry('PATERNO')
-        else:
-            if get_value('RUT'): add_wrong_entry('RUT')
-            if get_value('NAC'): add_wrong_entry('NAC')
-            if get_value('TIPO'): add_wrong_entry('TIPO')
-            if get_value('GENERO'): add_wrong_entry('GENERO')
-            if get_value('NOMBRE'): add_wrong_entry('NOMBRE')
-            if get_value('PATERNO'): add_wrong_entry('PATERNO')
-            if get_value('MATERNO'): add_wrong_entry('MATERNO')
+            for res in restricciones:
+                tipo_res = res['tipo']
+                exceptions = res['excepciones']
+                obs_exceptions = [e.split(':')[1] for e in exceptions if e.split(':')[0]=='obs']
+                obs_exceptions = obs_exceptions[0] if len(obs_exceptions)>0 else []
+                obs_exceptions = obs_exceptions.split('-') if len(obs_exceptions)>0 else []
+                
+                if tipo_res=='USUARIO':
+                    if get_value('OBS') not in obs_exceptions:
+                        tipo_value = get_value('TIPO')
+                        if not tipo_value: add_wrong_entry('TIPO')
+                        if not get_value('RUT'): add_wrong_entry('RUT')
+                        if not get_value('NOMBRE'): add_wrong_entry('NOMBRE')
+                        if tipo_value == 'NATURAL':
+                            if not get_value('NAC'): add_wrong_entry('NAC')
+                            if not get_value('GENERO'): add_wrong_entry('GENERO')
+                            if not get_value('PATERNO'): add_wrong_entry('PATERNO')
+                        if tipo_value == 'JURIDICA':
+                            if get_value('NAC'): add_wrong_entry('NAC')
+                            if get_value('GENERO'): add_wrong_entry('GENERO')
+                            if get_value('PATERNO'): add_wrong_entry('PATERNO')
+                            if get_value('MATERNO'): add_wrong_entry('MATERNO')
+                
+                elif tipo_res=='INSCRIPCION':
+                    if get_value('OBS') not in obs_exceptions:
+                        campos_obligatorios = ["CBR", "FOJA", "N°", "AÑO"]
+                        for campo in campos_obligatorios:
+                            if not get_value(campo): add_wrong_entry(campo)
                     
+                elif not get_value(tipo_res) and get_value('OBS') not in obs_exceptions:
+                    add_wrong_entry(tipo_res)
+                
+        
+        
+        
         add_red_borders()
         
         sugerencia=""
@@ -1068,6 +1420,18 @@ class NextWindow(QMainWindow):
                 not get_value('AÑO')
             ):
                 sugerencia="COMPLETAR INSCRIPCION"
+            elif tipo_doc=="SENTENCIA" or tipo_doc=="RESOLUCION DGA":
+                sugerencia="PERFECTO"
+                
+            elif tipo_doc=="COMUNIDAD DE AGUAS":
+                sugerencia="SIN REVISAR COM. AGUAS"
+            
+            elif tipo_doc =="HERENCIA":
+                sugerencia="SIN REVISAR PERFECCIONAMIENTO"
+            
+            elif tipo_doc == "SIN DOC. AGUAS":
+                sugerencia = "CERT. DOMINIO VIGENTE\nSIN DATOS DE INSCRIPCION"
+            
             elif tipo_doc in self.tipos_with_extra_form:
                 if(
                     get_value('NATURALEZA DEL AGUA') and
@@ -1115,6 +1479,7 @@ class NextWindow(QMainWindow):
         if not self.current_trabajo_id or not self.current_formulario_id:
             self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de guardar.")
             return
+        
         if not clean_data and  self.current_trabajo_info['estado_anterior']=="Terminado":
             wrong_entries = self.validate_fields()
             if wrong_entries:
@@ -1496,10 +1861,9 @@ class NextWindow(QMainWindow):
             entry.setTextCursor(cursor)
         entry.blockSignals(False)
 
-
-if __name__ == '__main__':
+if __name__ == '__main__':#
     app = QApplication(sys.argv)
-    next_window = NextWindow(1,'Ed',1)
+    next_window = NextWindow(22,'Ed',1, False)
     next_window.showMaximized()
     next_window.show()
     sys.exit(app.exec_())
