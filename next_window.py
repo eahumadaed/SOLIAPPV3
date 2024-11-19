@@ -64,6 +64,8 @@ class NextWindow(QMainWindow):
         
         self.layout.addWidget(self.splitter)
         
+        self.load_trabajos()
+        
     def set_title(self,Cantidad):
         self.setWindowTitle(f"SOL + DPs Formulario ({self.user_name}) - {Cantidad} Terminados")
         
@@ -114,7 +116,6 @@ class NextWindow(QMainWindow):
 
         self.devolver_button = QPushButton("Devolver a asignados", self)
         self.devolver_button.clicked.connect(self.devolver_a_asignados)
-        self.devolver_button.setEnabled(False)
         self.left_layout.addWidget(self.devolver_button)
 
         self.dir_label = QLabel("Seleccione PDF", self)
@@ -127,7 +128,7 @@ class NextWindow(QMainWindow):
         self.dir_pendientes_list.itemClicked.connect(lambda item: self.cambiar_seleccion(item, self.dir_pendientes_list))
         self.pdf_listbox.itemClicked.connect(lambda item: self.cambiar_seleccion(item, self.pdf_listbox))
         
-        self.load_trabajos()
+        #self.load_trabajos()
 
     def devolver_a_asignados(self):
         if not self.current_trabajo_id or not self.current_formulario_id:
@@ -139,7 +140,6 @@ class NextWindow(QMainWindow):
             self.update_trabajo_estado("Asignado")
             self.load_trabajos()
         self.current_trabajo_id = None
-        self.devolver_button.setEnabled(False)
 
     def cambiar_seleccion(self, item, lista):
         current_item = lista.currentItem()
@@ -162,7 +162,6 @@ class NextWindow(QMainWindow):
         self.skip_inscription_button = QPushButton("Saltar Inscripción ⏩", self)
         self.skip_inscription_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.skip_inscription_button.clicked.connect(self.skip_inscription)
-        self.skip_inscription_button.setEnabled(False)
         self.middle_section_title_layout.addWidget(self.skip_inscription_button)
         self.middle_layout.addLayout(self.middle_section_title_layout)
         self.scroll_area = QScrollArea(self)
@@ -559,7 +558,6 @@ class NextWindow(QMainWindow):
         self.clear_pdf_viewer()
         self.clear_pdf_list()
         self.current_trabajo_id = None
-        self.skip_inscription_button.setEnabled(False)
         
 
     def toggle_extra(self, obs_option=None):
@@ -817,6 +815,8 @@ class NextWindow(QMainWindow):
         print("Formulario cargado 2:", formulario)
 
     def load_trabajos(self):
+        self.skip_inscription_button.setEnabled(False)
+        self.devolver_button.setEnabled(False)
         try:
             self.dir_listwidget.clear()
             self.dir_pendientes_list.clear()
@@ -900,8 +900,8 @@ class NextWindow(QMainWindow):
                             entry.setPlainText(entry_value if entry_value is not None else "")
                         elif isinstance(entry, QDateEdit) and entry_value:
                             entry.setDate(QDate.fromString(entry_value, "dd/MM/yyyy"))
-        print("Campos adicionales llenados para 'OTROS'")
-                
+        print("Campos adicionales llenados para 'OTROS'")    
+         
     def on_directory_select(self):
         selected_items = []
 
@@ -920,14 +920,18 @@ class NextWindow(QMainWindow):
         if selected_items:
             selected_item = selected_items[0]
             selected_trabajo_id = selected_item.data(Qt.UserRole)
-            
+    
+            self.prev_estado_anterior = None
+            if self.current_trabajo_info and 'estado_anterior' in self.current_trabajo_info:
+                self.prev_estado_anterior = self.current_trabajo_info['estado_anterior']
+                
             item_info = selected_item.text()
             self.current_trabajo_info = {
                 "trabajo": item_info.split("(")[0].strip(),
                 "estado_anterior": item_info.split("(")[-1].replace(")","").strip()
             }
             
-            if self.current_trabajo_id is not None and self.current_trabajo_id != selected_trabajo_id and self.current_trabajo_info['estado_anterior']!="Terminado":
+            if self.prev_estado_anterior and self.current_trabajo_id and self.current_trabajo_id != selected_trabajo_id and self.prev_estado_anterior!="Terminado":
                 self.save_form(silence=True)
 
             self.current_trabajo_id = selected_trabajo_id
@@ -1104,6 +1108,8 @@ class NextWindow(QMainWindow):
                 entry.textChanged.connect(lambda: self.add_apellido_item(entry))
                 entry.setCompleter(self.apellido_completer)
                 entry.returnPressed.connect(lambda: self.select_completion(label_text))
+            elif label_text=="N° DOC":
+                entry.setMaxLength(9)
                 
             entry.focusOutEvent = self.wrap_focus_out_event(entry.focusOutEvent)
                 
@@ -1480,7 +1486,7 @@ class NextWindow(QMainWindow):
             self.show_message("Error", "Seleccionar Trabajo", "Debe seleccionar un trabajo antes de guardar.")
             return
         
-        if not clean_data and  self.current_trabajo_info['estado_anterior']=="Terminado":
+        if not clean_data and  self.prev_estado_anterior=="Terminado":
             wrong_entries = self.validate_fields()
             if wrong_entries:
                 self.show_message("Error", "Verificar campos", f"Verificar los siguientes campos: \n- {"\n- ".join(wrong_entries)}")
@@ -1630,8 +1636,6 @@ class NextWindow(QMainWindow):
         self.clear_pdf_viewer()
         self.clear_pdf_list()
         self.current_trabajo_id = None
-        self.skip_inscription_button.setEnabled(False)
-        self.devolver_button.setEnabled(False)
 
     def clear_pdf_list(self):
         self.pdf_listbox.clear()
